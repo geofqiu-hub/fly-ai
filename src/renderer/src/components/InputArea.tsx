@@ -98,6 +98,11 @@ export function InputArea({ onSend, disabled, enabledProviders, availableModels,
     const files = Array.from(e.target.files || [])
     if (files.length === 0) return
 
+    await processFiles(files)
+    e.target.value = ''
+  }
+
+  const processFiles = async (files: File[]) => {
     const newAttachments: Attachment[] = []
 
     for (const file of files) {
@@ -122,7 +127,28 @@ export function InputArea({ onSend, disabled, enabledProviders, availableModels,
     }
 
     setAttachments(prev => [...prev, ...newAttachments])
-    e.target.value = ''
+  }
+
+  const handlePaste = async (e: React.ClipboardEvent) => {
+    const clipboardData = e.clipboardData
+    if (!clipboardData) return
+
+    const items = Array.from(clipboardData.items)
+    const files: File[] = []
+
+    for (const item of items) {
+      if (item.kind === 'file') {
+        const file = item.getAsFile()
+        if (file) {
+          files.push(file)
+        }
+      }
+    }
+
+    if (files.length > 0) {
+      e.preventDefault()
+      await processFiles(files)
+    }
   }
 
   const removeAttachment = (index: number) => {
@@ -175,12 +201,13 @@ export function InputArea({ onSend, disabled, enabledProviders, availableModels,
                 </div>
             )}
             
-            <textarea 
+            <textarea
                 ref={textareaRef}
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder={hasNoModels ? "No models available..." : "Type a message..."}
+                onPaste={handlePaste}
+                placeholder={hasNoModels ? "No models available..." : "Type a message... (Supports pasting files)"}
                 className="w-full resize-none outline-none text-gray-800 placeholder:text-gray-400 min-h-[50px] max-h-[200px] bg-transparent py-1 px-1"
                 rows={1}
                 disabled={disabled || hasNoModels}

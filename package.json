@@ -9,7 +9,7 @@
     "build:renderer": "tsc && vite build",
     "build": "npm run build:main && npm run build:preload && npm run build:renderer",
     "dev:renderer": "vite",
-    "dev:main": "NODE_ENV=development npm run build:main && npm run build:preload && electron dist/main/index.js",
+    "dev:main": "NODE_ENV=development npm run build:main && npm run build:preload && NODE_ENV=development electron dist/main/index.js",
     "dev": "concurrently -n \"renderer,main\" -c \"cyan,magenta\" \"npm run dev:renderer\" \"wait-on tcp:5173 && npm run dev:main\""
   },
   "keywords": [],

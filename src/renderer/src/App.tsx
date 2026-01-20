@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Sidebar } from './components/Sidebar'
 import { ChatArea } from './components/ChatArea'
+import { ChatHeader } from './components/ChatHeader'
 import { InputArea } from './components/InputArea'
 import { SettingsModal } from './components/SettingsModal'
 import { GoogleGenerativeAI } from '@google/generative-ai'
@@ -25,9 +26,11 @@ If generating images natively, do so. If not, use: ![Desc](https://image.pollina
 function App() {
   const [messages, setMessages] = useState<any[]>([])
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
+  const [currentSessionTitle, setCurrentSessionTitle] = useState<string>('New Chat')
   const [streamingContent, setStreamingContent] = useState('')
   const [isStreaming, setIsStreaming] = useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const [refreshSidebar, setRefreshSidebar] = useState(0)
   const [enabledProviders, setEnabledProviders] = useState({ gemini: true, openai: false })
   const [availableModels, setAvailableModels] = useState<{ gemini: string[], openai: string[] }>(DEFAULT_MODELS)
@@ -36,6 +39,22 @@ function App() {
   const [, setImageDownloadTrigger] = useState(0) // Used to force re-render for image progress
 
   useEffect(() => { initApp() }, [])
+
+  // Responsive sidebar - auto collapse on small screens
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth < 768) {
+        setIsSidebarCollapsed(true)
+      }
+    }
+
+    // Check on mount
+    handleResize()
+
+    // Listen for resize events
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
 
   const initApp = async () => {
       await loadSettings()
@@ -62,6 +81,7 @@ function App() {
   const createNewSession = async () => {
     const id = await window.api.createSession('New Chat')
     setCurrentSessionId(id)
+    setCurrentSessionTitle('New Chat')
     setMessages([])
     setRefreshSidebar(prev => prev + 1)
   }
@@ -93,6 +113,12 @@ function App() {
     setCurrentSessionId(id)
     const msgs = await window.api.getMessages(id)
     setMessages(msgs)
+
+    // Get session title
+    const sessions = await window.api.getSessions()
+    const session = sessions.find(s => s.id === id)
+    setCurrentSessionTitle(session?.title || 'New Chat')
+
     // Check and clean empty sessions when user loads a session
     checkAndCleanEmptySession()
   }
@@ -216,6 +242,7 @@ function App() {
       if (messages.length === 0) {
         const title = text.slice(0, 30) || 'New Chat'
         await window.api.updateSessionTitle({ sessionId, title })
+        setCurrentSessionTitle(title)
         setRefreshSidebar(prev => prev + 1)
       }
     } catch (error: any) {
@@ -352,10 +379,20 @@ ${atob(att.data.split(',')[1])}
 
   return (
     <div className="flex h-screen w-full bg-claude-bg text-gray-800 font-sans selection:bg-claude-accent selection:text-white">
-      <Sidebar onOpenSettings={() => setIsSettingsOpen(true)} onSelectSession={loadSession} currentSessionId={currentSessionId} onNewSession={createNewSession} refreshTrigger={refreshSidebar} onDeleteSession={handleDeleteSession} />
+      <Sidebar
+        onOpenSettings={() => setIsSettingsOpen(true)}
+        onSelectSession={loadSession}
+        currentSessionId={currentSessionId}
+        onNewSession={createNewSession}
+        refreshTrigger={refreshSidebar}
+        onDeleteSession={handleDeleteSession}
+        isCollapsed={isSidebarCollapsed}
+        onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+      />
       <div className="flex-1 flex flex-col h-full relative">
         <div className="h-8 w-full shrink-0 drag-region z-50 absolute top-0 left-0" />
-          <ChatArea messages={messages} streamingContent={streamingContent} isStreaming={isStreaming} imageDownloads={imageDownloadsRef.current} />
+        <ChatHeader title={currentSessionTitle} onToggleSidebar={() => setIsSidebarCollapsed(!isSidebarCollapsed)} isSidebarCollapsed={isSidebarCollapsed} />
+        <ChatArea messages={messages} streamingContent={streamingContent} isStreaming={isStreaming} imageDownloads={imageDownloadsRef.current} />
         <InputArea onSend={handleSend} disabled={isStreaming} enabledProviders={enabledProviders} availableModels={availableModels} lastUsedModelId={lastUsedModelId} />
       </div>
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} onSettingsChanged={loadSettings} />

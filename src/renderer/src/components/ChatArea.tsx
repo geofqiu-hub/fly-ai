@@ -299,7 +299,7 @@ export function ChatArea({ messages, streamingContent, isStreaming, imageDownloa
   }
 
   return (
-    <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-10 pt-12">
+    <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-10">
         {messages.length === 0 && !isStreaming ? (
             <div className="max-w-2xl mx-auto mt-20 text-center space-y-6"><div className="w-16 h-16 bg-white rounded-3xl shadow-sm mx-auto flex items-center justify-center border border-black/5 rotate-3"><ImageIcon className="text-claude-accent" size={32} /></div><div className="space-y-2"><h1 className="text-3xl font-serif text-gray-800 tracking-tight">How can I help you?</h1><p className="text-gray-400 text-sm">Create and reason with FlyAi.</p></div></div>
         ) : (
