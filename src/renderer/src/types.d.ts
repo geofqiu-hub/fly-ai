@@ -1,7 +1,7 @@
 export interface IElectronAPI {
   getSetting: (key: string) => Promise<string | null>
   saveSetting: (key: string, value: string) => Promise<void>
-  createSession: (title?: string) => Promise<string>
+  createSession: (title?: string, modelType?: string) => Promise<string>
   getSessions: () => Promise<any[]>
   getMessages: (sessionId: string) => Promise<any[]>
   saveMessage: (data: {

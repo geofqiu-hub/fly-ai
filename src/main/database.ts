@@ -79,4 +79,11 @@ try {
   // Column likely already exists, ignore
 }
 
+// Migration: Add model_type column to sessions
+try {
+  db.exec('ALTER TABLE sessions ADD COLUMN model_type TEXT DEFAULT "text"')
+} catch (error) {
+  // Column likely already exists, ignore
+}
+
 export default db
