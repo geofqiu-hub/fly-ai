@@ -1,0 +1,53 @@
+{
+  "name": "flyai",
+  "version": "1.0.0",
+  "description": "",
+  "main": "dist/main/index.js",
+  "scripts": {
+    "build:main": "esbuild src/main/index.ts --bundle --platform=node --outfile=dist/main/index.js --external:electron --external:better-sqlite3",
+    "build:preload": "esbuild src/preload/index.ts --bundle --platform=node --outfile=dist/preload/index.js --external:electron",
+    "build:renderer": "tsc && vite build",
+    "build": "npm run build:main && npm run build:preload && npm run build:renderer",
+    "dev:renderer": "vite",
+    "dev:main": "NODE_ENV=development npm run build:main && npm run build:preload && electron dist/main/index.js",
+    "dev": "concurrently -n \"renderer,main\" -c \"cyan,magenta\" \"npm run dev:renderer\" \"wait-on tcp:5173 && npm run dev:main\""
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^25.0.9",
+    "@types/react": "^19.2.8",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.2",
+    "autoprefixer": "^10.4.23",
+    "concurrently": "^9.2.1",
+    "electron": "^40.0.0",
+    "electron-builder": "^26.4.0",
+    "esbuild": "^0.27.2",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.1",
+    "wait-on": "^9.0.3"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "@types/react-syntax-highlighter": "^15.5.13",
+    "@types/uuid": "^10.0.0",
+    "better-sqlite3": "^12.6.2",
+    "clsx": "^2.1.1",
+    "dotenv": "^17.2.3",
+    "lucide-react": "^0.562.0",
+    "openai": "^6.16.0",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "react-markdown": "^10.1.0",
+    "react-syntax-highlighter": "^16.1.0",
+    "remark-gfm": "^4.0.1",
+    "tailwind-merge": "^3.4.0",
+    "uuid": "^13.0.0"
+  }
+}
