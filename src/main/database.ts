@@ -46,4 +46,37 @@ try {
   // Column likely already exists, ignore
 }
 
+// Migration: Add agents table and session-agent relationship
+db.exec(`
+  CREATE TABLE IF NOT EXISTS agents (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT,
+    system_prompt TEXT,
+    avatar_color TEXT DEFAULT '#7c3aed',
+    model_id TEXT,
+    temperature REAL DEFAULT 0.7,
+    is_preset INTEGER DEFAULT 0,
+    created_at INTEGER,
+    updated_at INTEGER
+  );
+
+  CREATE TABLE IF NOT EXISTS preset_agents (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT,
+    system_prompt TEXT,
+    avatar_color TEXT DEFAULT '#7c3aed',
+    model_id TEXT,
+    temperature REAL DEFAULT 0.7
+  );
+`)
+
+// Migration: Add agent_id column to sessions
+try {
+  db.exec('ALTER TABLE sessions ADD COLUMN agent_id TEXT')
+} catch (error) {
+  // Column likely already exists, ignore
+}
+
 export default db

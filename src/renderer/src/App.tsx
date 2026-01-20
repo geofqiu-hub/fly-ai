@@ -14,9 +14,19 @@ interface ImageDownloadProgress {
   progress?: number
 }
 
+interface Agent {
+  id: string
+  name: string
+  description: string
+  system_prompt: string
+  avatar_color: string
+  model_id?: string
+  temperature?: number
+}
+
 const DEFAULT_MODELS = {
-    gemini: ['gemini-2.0-flash-exp', 'gemini-1.5-pro'],
-    openai: ['gpt-4o', 'gpt-4o-mini', 'gpt-3.5-turbo']
+    gemini: ['gemini-3-pro-image-preview'],
+    openai: []
 }
 
 const SYSTEM_PROMPT = `You are FlyAi, an intelligent assistant. 
@@ -35,6 +45,9 @@ function App() {
   const [enabledProviders, setEnabledProviders] = useState({ gemini: true, openai: false })
   const [availableModels, setAvailableModels] = useState<{ gemini: string[], openai: string[] }>(DEFAULT_MODELS)
   const [lastUsedModelId, setLastUsedModelId] = useState<string | undefined>(undefined)
+  // Agent state
+  const [allAgents, setAllAgents] = useState<Agent[]>([])
+  const [currentSessionAgent, setCurrentSessionAgent] = useState<Agent | null>(null)
   const imageDownloadsRef = useRef<Map<string, ImageDownloadProgress>>(new Map())
   const [, setImageDownloadTrigger] = useState(0) // Used to force re-render for image progress
 
@@ -58,6 +71,7 @@ function App() {
 
   const initApp = async () => {
       await loadSettings()
+      await loadAgents()
       const sessions = await window.api.getSessions()
       // Don't auto-load any session, let user start fresh
       console.log('🚀 App initialized -', sessions.length, 'sessions found')
@@ -78,11 +92,17 @@ function App() {
       if (lastModel) setLastUsedModelId(lastModel)
   }
 
+  const loadAgents = async () => {
+    const agents = await window.api.getAgents()
+    setAllAgents(agents)
+  }
+
   const createNewSession = async () => {
     const id = await window.api.createSession('New Chat')
     setCurrentSessionId(id)
     setCurrentSessionTitle('New Chat')
     setMessages([])
+    setCurrentSessionAgent(null)
     setRefreshSidebar(prev => prev + 1)
   }
 
@@ -114,13 +134,56 @@ function App() {
     const msgs = await window.api.getMessages(id)
     setMessages(msgs)
 
-    // Get session title
+    // Get session title and agent
     const sessions = await window.api.getSessions()
     const session = sessions.find(s => s.id === id)
     setCurrentSessionTitle(session?.title || 'New Chat')
 
+    // Load session agent if exists
+    if (session?.agent_id) {
+      const agent = await window.api.getAgent(session.agent_id)
+      if (agent) {
+        setCurrentSessionAgent(agent)
+      } else {
+        setCurrentSessionAgent(null)
+      }
+    } else {
+      setCurrentSessionAgent(null)
+    }
+
     // Check and clean empty sessions when user loads a session
     checkAndCleanEmptySession()
+  }
+
+  const handleSessionAgentChange = async (agentId: string | null) => {
+    console.log('🤖 App: handleSessionAgentChange called', agentId, 'currentSessionId:', currentSessionId)
+
+    // If no session exists, create one first
+    let sessionId = currentSessionId
+    if (!sessionId) {
+      sessionId = await window.api.createSession('New Chat')
+      console.log('🤖 App: Created new session', sessionId)
+      setCurrentSessionId(sessionId)
+      setMessages([])
+      setCurrentSessionTitle('New Chat')
+      setRefreshSidebar(prev => prev + 1)
+    }
+
+    // Update session in database
+    await window.api.updateSessionAgent({ sessionId, agentId: agentId || undefined })
+
+    // Update local state
+    if (agentId) {
+      const agent = await window.api.getAgent(agentId)
+      console.log('🤖 App: Retrieved agent from DB', agent)
+      if (agent) {
+        setCurrentSessionAgent(agent)
+        console.log('🤖 App: Set currentSessionAgent to', agent)
+      }
+    } else {
+      setCurrentSessionAgent(null)
+      console.log('🤖 App: Cleared currentSessionAgent')
+    }
   }
 
   // Download external image and convert to flyai:// URL
@@ -256,8 +319,18 @@ function App() {
     const apiKey = await window.api.getSetting('gemini_api_key')
     const baseUrl = await window.api.getSetting('gemini_base_url')
     if (!apiKey) throw new Error("Please set your Gemini API Key in Settings.")
+
+    // Use agent's system prompt if available, otherwise use default
+    const systemPrompt = currentSessionAgent?.system_prompt || SYSTEM_PROMPT
+
     const genAI = new GoogleGenerativeAI(apiKey)
-    const model = genAI.getGenerativeModel({ model: modelId, systemInstruction: SYSTEM_PROMPT }, { baseUrl: baseUrl || undefined })
+    const model = genAI.getGenerativeModel(
+      {
+        model: modelId,
+        systemInstruction: systemPrompt
+      },
+      { baseUrl: baseUrl || undefined }
+    )
 
     const history = messages.map(m => ({ role: m.role === 'user' ? 'user' : 'model', parts: [{ text: m.content }] }))
     const parts: any[] = []
@@ -346,9 +419,17 @@ ${atob(base64Data)}
     const apiKey = await window.api.getSetting('openai_api_key')
     const baseUrl = await window.api.getSetting('openai_base_url')
     if (!apiKey) throw new Error("Please set your OpenAI API Key in Settings.")
+
+    // Use agent's system prompt if available, otherwise use default
+    const systemPrompt = currentSessionAgent?.system_prompt || SYSTEM_PROMPT
+    const temperature = currentSessionAgent?.temperature
+
     const openai = new OpenAI({ apiKey, baseURL: baseUrl || undefined, dangerouslyAllowBrowser: true })
 
-    const currentMessages: any[] = [{ role: 'system', content: SYSTEM_PROMPT }, ...messages.map(m => ({ role: m.role === 'model' ? 'assistant' : 'user', content: m.content }))]
+    const currentMessages: any[] = [
+      { role: 'system', content: systemPrompt },
+      ...messages.map(m => ({ role: m.role === 'model' ? 'assistant' : 'user', content: m.content }))
+    ]
     const userContent: any[] = []
     if (text) userContent.push({ type: "text", text })
     for (const att of attachments) {
@@ -362,7 +443,12 @@ ${atob(att.data.split(',')[1])}
     }
     currentMessages.push({ role: 'user', content: userContent })
 
-    const stream = await openai.chat.completions.create({ model: modelId, messages: currentMessages, stream: true })
+    const stream = await openai.chat.completions.create({
+      model: modelId,
+      messages: currentMessages,
+      stream: true,
+      ...(temperature !== undefined && { temperature })
+    })
     let fullText = ''
     for await (const chunk of stream) {
         const content = chunk.choices[0]?.delta?.content || ''
@@ -391,11 +477,25 @@ ${atob(att.data.split(',')[1])}
       />
       <div className="flex-1 flex flex-col h-full relative">
         <div className="h-8 w-full shrink-0 drag-region z-50 absolute top-0 left-0" />
-        <ChatHeader title={currentSessionTitle} onToggleSidebar={() => setIsSidebarCollapsed(!isSidebarCollapsed)} isSidebarCollapsed={isSidebarCollapsed} />
+        <ChatHeader
+          title={currentSessionTitle}
+          onToggleSidebar={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+          isSidebarCollapsed={isSidebarCollapsed}
+        />
         <ChatArea messages={messages} streamingContent={streamingContent} isStreaming={isStreaming} imageDownloads={imageDownloadsRef.current} />
-        <InputArea onSend={handleSend} disabled={isStreaming} enabledProviders={enabledProviders} availableModels={availableModels} lastUsedModelId={lastUsedModelId} />
+        <InputArea
+          onSend={handleSend}
+          disabled={isStreaming}
+          enabledProviders={enabledProviders}
+          availableModels={availableModels}
+          lastUsedModelId={lastUsedModelId}
+          agents={allAgents}
+          currentAgent={currentSessionAgent}
+          onAgentChange={handleSessionAgentChange}
+          onModelChange={(modelId) => setLastUsedModelId(modelId)}
+        />
       </div>
-      <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} onSettingsChanged={loadSettings} />
+      <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} onSettingsChanged={() => { loadSettings(); loadAgents(); }} />
     </div>
   )
 }
