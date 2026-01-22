@@ -4,6 +4,7 @@
   "description": "",
   "main": "dist/main/index.js",
   "scripts": {
+    "postinstall": "npx @electron/rebuild -f -w better-sqlite3",
     "build:main": "esbuild src/main/index.ts --bundle --platform=node --outfile=dist/main/index.js --external:electron --external:better-sqlite3",
     "build:preload": "esbuild src/preload/index.ts --bundle --platform=node --outfile=dist/preload/index.js --external:electron",
     "build:renderer": "tsc && vite build",
@@ -26,6 +27,7 @@
     "concurrently": "^9.2.1",
     "electron": "^40.0.0",
     "electron-builder": "^26.4.0",
+    "electron-rebuild": "^3.2.9",
     "esbuild": "^0.27.2",
     "postcss": "^8.5.6",
     "tailwindcss": "^3.4.17",
@@ -35,6 +37,7 @@
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
+    "@tailwindcss/typography": "^0.5.19",
     "@types/react-syntax-highlighter": "^15.5.13",
     "@types/uuid": "^10.0.0",
     "better-sqlite3": "^12.6.2",

@@ -1,11 +1,18 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import type { Agent } from '../types/chat'
+
+export interface Session {
+  id: string
+  title: string
+  created_at: number
+}
 
 export interface SessionState {
   currentSessionId: string | null
   currentSessionTitle: string
   currentSessionAgent: Agent | null
   refreshSidebar: number
+  sessions: Session[]
 }
 
 export const useSessions = () => {
@@ -13,36 +20,103 @@ export const useSessions = () => {
     currentSessionId: null,
     currentSessionTitle: 'New Chat',
     currentSessionAgent: null,
-    refreshSidebar: 0
+    refreshSidebar: 0,
+    sessions: []
   })
 
-  /**
-   * 创建新会话
-   */
+  const loadSessions = useCallback(async () => {
+    const sessions = await window.api.getSessions()
+    setState(prev => ({ ...prev, sessions }))
+  }, [])
+
   const createNewSession = useCallback(async () => {
-    // TODO: 实现创建新会话的业务逻辑
-    return 'session-id'
-  }, [state])
+    const sessionId = await window.api.createSession('New Chat')
+    setState(prev => ({
+      ...prev,
+      currentSessionId: sessionId,
+      currentSessionTitle: 'New Chat',
+      refreshSidebar: prev.refreshSidebar + 1
+    }))
+    await loadSessions()
+    return sessionId
+  }, [loadSessions])
 
-  /**
-   * 加载会话
-   */
+  const selectSession = useCallback(async (id: string) => {
+    const sessions = await window.api.getSessions()
+    const session = sessions.find((s: any) => s.id === id)
+    
+    let agent = null
+    if (session?.agent_id) {
+      agent = await window.api.getAgent(session.agent_id)
+    }
+
+    setState(prev => ({
+      ...prev,
+      currentSessionId: id,
+      currentSessionTitle: session?.title || 'New Chat',
+      currentSessionAgent: agent
+    }))
+  }, [])
+
+  const deleteSession = useCallback(async (id: string) => {
+    await window.api.deleteSession(id)
+    if (state.currentSessionId === id) {
+      setState(prev => ({
+        ...prev,
+        currentSessionId: null,
+        currentSessionTitle: 'New Chat'
+      }))
+    }
+    await loadSessions()
+  }, [state.currentSessionId, loadSessions])
+
+  const updateSessionTitle = useCallback(async (id: string, title: string) => {
+    await window.api.updateSessionTitle({ sessionId: id, title })
+    setState(prev => {
+      if (prev.currentSessionId === id) {
+        return { ...prev, currentSessionTitle: title }
+      }
+      return prev
+    })
+    await loadSessions()
+  }, [loadSessions])
+
+  const autoRenameSession = useCallback(async (id: string, message: string, providerId: string, config: any) => {
+    try {
+      const title = await window.api.generateTitle({ providerId, config, message })
+      if (title && title !== 'New Chat') {
+        await updateSessionTitle(id, title)
+      }
+    } catch (error) {
+      console.error('Failed to auto rename session:', error)
+    }
+  }, [updateSessionTitle])
+
   const loadSession = useCallback(async (id: string) => {
-    // TODO: 实现加载会话的业务逻辑
-    return { messages: [], agent: null }
-  }, [state])
+    const messages = await window.api.getMessages(id)
+    const sessions = await window.api.getSessions()
+    const session = sessions.find((s: any) => s.id === id)
+    let agent = null
+    if (session?.agent_id) {
+      agent = await window.api.getAgent(session.agent_id)
+    }
+    return {
+      messages,
+      agent
+    }
+  }, [])
 
-  /**
-   * 更新会话智能体
-   */
   const updateSessionAgent = useCallback(async (agentId: string | null) => {
-    // TODO: 实现更新会话智能体的业务逻辑
+    if (state.currentSessionId) {
+      await window.api.updateSessionAgent({ sessionId: state.currentSessionId, agentId: agentId || undefined })
+      if (agentId) {
+        const agent = await window.api.getAgent(agentId)
+        setState(prev => ({ ...prev, currentSessionAgent: agent }))
+      }
+    }
     return state.currentSessionId || 'session-id'
-  }, [state])
+  }, [state.currentSessionId])
 
-  /**
-   * 清空当前会话
-   */
   const clearSession = useCallback(() => {
     setState({
       ...state,
@@ -52,17 +126,22 @@ export const useSessions = () => {
     })
   }, [state])
 
-  /**
-   * 设置会话ID
-   */
   const setSessionId = useCallback((sessionId: string | null) => {
     setState({ ...state, currentSessionId: sessionId })
   }, [state])
+
+  useEffect(() => {
+    loadSessions()
+  }, [loadSessions])
 
   return {
     ...state,
     createNewSession,
     loadSession,
+    selectSession,
+    deleteSession,
+    updateSessionTitle,
+    autoRenameSession,
     updateSessionAgent,
     clearSession,
     setSessionId

@@ -1,8 +1,31 @@
-import { ipcMain } from 'electron'
+import { ipcMain, app } from 'electron'
 import db from './database'
 import { v4 as uuidv4 } from 'uuid'
+import { providerManager } from './providers/provider-manager'
+import path from 'path'
+import fs from 'fs'
 
 export function setupIPC() {
+  // Image Storage
+  ipcMain.handle('save-image', async (_, { base64, mimeType, sessionId }) => {
+    const filename = `${uuidv4()}.${mimeType.split('/')[1] || 'png'}`
+    const dir = path.join(app.getPath('userData'), 'images', sessionId)
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+    const filePath = path.join(dir, filename)
+    const buffer = Buffer.from(base64, 'base64')
+    fs.writeFileSync(filePath, buffer)
+    return filename
+  })
+
+  ipcMain.handle('get-image', async (_, sessionId, filename) => {
+    const filePath = path.join(app.getPath('userData'), 'images', sessionId, filename)
+    if (!fs.existsSync(filePath)) return null
+    const buffer = fs.readFileSync(filePath)
+    const ext = path.extname(filename).replace('.', '')
+    const mimeType = `image/${ext === 'jpg' ? 'jpeg' : ext}`
+    return `data:${mimeType};base64,${buffer.toString('base64')}`
+  })
+
   // Settings
   ipcMain.handle('get-setting', (_, key: string) => {
     const stmt = db.prepare('SELECT value FROM settings WHERE key = ?')
@@ -33,6 +56,14 @@ export function setupIPC() {
     stmt.run(title, sessionId)
   })
 
+  ipcMain.handle('generate-title', async (_, { providerId, config, message }) => {
+    const provider = providerManager.getProvider(providerId)
+    if (!provider || !provider.generateTitle) {
+      return 'New Chat'
+    }
+    return provider.generateTitle({ config, message })
+  })
+
   ipcMain.handle('delete-session', (_, sessionId: string) => {
     const stmt = db.prepare('DELETE FROM sessions WHERE id = ?')
     stmt.run(sessionId)
@@ -44,11 +75,15 @@ export function setupIPC() {
     return stmt.all(sessionId)
   })
 
-  ipcMain.handle('save-message', (_, { sessionId, role, content, type = 'text', attachments = null }) => {
+  ipcMain.handle('save-message', (_, { sessionId, role, content, type = 'text', attachments = null, modelId, agentId, parts, tokensUsed, cost, isSummary = false }) => {
     const id = uuidv4()
-    const stmt = db.prepare('INSERT INTO messages (id, session_id, role, content, type, attachments, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+    const stmt = db.prepare(`
+      INSERT INTO messages (id, session_id, role, content, type, attachments, model_id, agent_id, parts, tokens_used, cost, is_summary, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `)
     const attachmentsStr = attachments ? JSON.stringify(attachments) : null
-    stmt.run(id, sessionId, role, content, type, attachmentsStr, Date.now())
+    const partsStr = parts ? JSON.stringify(parts) : null
+    stmt.run(id, sessionId, role, content, type, attachmentsStr, modelId, agentId, partsStr, tokensUsed, cost, isSummary ? 1 : 0, Date.now())
     return id
   })
 
@@ -96,5 +131,82 @@ export function setupIPC() {
   ipcMain.handle('update-session-agent', (_, { sessionId, agentId }) => {
     const stmt = db.prepare('UPDATE sessions SET agent_id = ? WHERE id = ?')
     stmt.run(agentId || null, sessionId)
+  })
+
+  // API Configs
+  ipcMain.handle('get-api-config', (_, provider: string) => {
+    const stmt = db.prepare('SELECT * FROM api_configs WHERE provider = ?')
+    return stmt.get(provider)
+  })
+
+  ipcMain.handle('save-api-config', (_, { provider, apiKey, baseUrl }) => {
+    const now = Date.now()
+    const existing = db.prepare('SELECT id FROM api_configs WHERE provider = ?').get(provider) as { id: string } | undefined
+    
+    if (existing) {
+      const stmt = db.prepare('UPDATE api_configs SET api_key = ?, base_url = ?, updated_at = ? WHERE provider = ?')
+      stmt.run(apiKey, baseUrl, now, provider)
+      return existing.id
+    } else {
+      const stmt = db.prepare(`
+        INSERT INTO api_configs (id, provider, api_key, base_url, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `)
+      const id = `api_${provider}_${Date.now()}`
+      stmt.run(id, provider, apiKey, baseUrl, now, now)
+      return id
+    }
+  })
+
+  ipcMain.handle('delete-api-config', (_, provider: string) => {
+    const stmt = db.prepare('DELETE FROM api_configs WHERE provider = ?')
+    stmt.run(provider)
+  })
+
+  // Models
+  ipcMain.handle('get-models', (_, provider?: string) => {
+    let rows
+    if (provider) {
+      const stmt = db.prepare('SELECT * FROM models WHERE provider = ? AND is_enabled =1')
+      rows = stmt.all(provider)
+    } else {
+      const stmt = db.prepare('SELECT * FROM models WHERE is_enabled =1')
+      rows = stmt.all()
+    }
+    
+    return rows.map((row: any) => ({
+      id: row.id,
+      provider: row.provider,
+      modelId: row.model_id,
+      name: row.name,
+      capabilities: JSON.parse(row.capabilities),
+      contextWindow: row.context_window,
+      inputCost: row.input_cost,
+      outputCost: row.output_cost,
+      isEnabled: row.is_enabled === 1
+    }))
+  })
+
+  ipcMain.handle('get-model', (_, modelId: string) => {
+    const stmt = db.prepare('SELECT * FROM models WHERE model_id = ?')
+    const row = stmt.get(modelId) as any
+    if (!row) return null
+    
+    return {
+      id: row.id,
+      provider: row.provider,
+      modelId: row.model_id,
+      name: row.name,
+      capabilities: JSON.parse(row.capabilities),
+      contextWindow: row.context_window,
+      inputCost: row.input_cost,
+      outputCost: row.output_cost,
+      isEnabled: row.is_enabled === 1
+    }
+  })
+
+  ipcMain.handle('update-model-status', (_, { modelId, isEnabled }) => {
+    const stmt = db.prepare('UPDATE models SET is_enabled = ? WHERE model_id = ?')
+    stmt.run(isEnabled ? 1 : 0, modelId)
   })
 }

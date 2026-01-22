@@ -11,6 +11,7 @@ function App() {
   // ========== UI 状态 ==========
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
+  const [currentModel, setCurrentModel] = useState<any>(null)
 
   // ========== 会话管理 ==========
   const sessions = useSessions()
@@ -19,7 +20,9 @@ function App() {
   const chat = useChat({
     currentSessionId: sessions.currentSessionId,
     currentSessionAgent: sessions.currentSessionAgent,
-    createNewSession: sessions.createNewSession
+    currentModel,
+    createNewSession: sessions.createNewSession,
+    autoRenameSession: sessions.autoRenameSession
   })
 
   // ========== 副作用 ==========
@@ -38,21 +41,60 @@ function App() {
     return () => window.removeEventListener('resize', handleResize)
   }, [])
 
+  // 切换会话时处理模型/智能体状态
+  useEffect(() => {
+    if (sessions.currentSessionAgent) {
+      setCurrentModel(null)
+    }
+  }, [sessions.currentSessionAgent])
+
   // ========== 初始化 ==========
   const initApp = async () => {
     const sessionsCount = (await window.api.getSessions()).length
     console.log('🚀 App initialized -', sessionsCount, 'sessions found')
+
+    // Load last used model
+    const lastModelId = await window.api.getSetting('last_used_model')
+    const models = await window.api.getModels()
+    
+    if (lastModelId) {
+      const model = models.find((m: any) => m.modelId === lastModelId)
+      if (model) {
+        setCurrentModel(model)
+      } else {
+        // Fallback if model no longer exists
+        const defaultModel = models.find((m: any) => m.modelId === 'gemini-2.5-flash') || models[0]
+        setCurrentModel(defaultModel)
+      }
+    } else {
+      const defaultModel = models.find((m: any) => m.modelId === 'gemini-2.5-flash') || models[0]
+      setCurrentModel(defaultModel)
+    }
   }
 
   // ========== 事件处理 ==========
   const handleLoadSession = async (id: string) => {
-    const { messages } = await sessions.loadSession(id)
-    chat.setMessages(messages)
+    await sessions.selectSession(id)
+    // chat hook will automatically load messages via useEffect when currentSessionId changes
   }
 
   const handleNewSession = async () => {
     await sessions.createNewSession()
     chat.clearMessages()
+    
+    // Default to last used model for new sessions
+    const lastModelId = await window.api.getSetting('last_used_model')
+    const models = await window.api.getModels()
+    const defaultModelId = lastModelId || 'gemini-2.5-flash'
+    const model = models.find((m: any) => m.modelId === defaultModelId) || models[0]
+    setCurrentModel(model)
+  }
+
+  const handleSelectModel = async (model: any) => {
+    setCurrentModel(model)
+    if (model) {
+      await window.api.saveSetting('last_used_model', model.modelId)
+    }
   }
 
   return (
@@ -60,8 +102,10 @@ function App() {
       <Sidebar
         onOpenSettings={() => setIsSettingsOpen(true)}
         onSelectSession={handleLoadSession}
+        onDeleteSession={sessions.deleteSession}
         currentSessionId={sessions.currentSessionId}
         onNewSession={handleNewSession}
+        sessions={sessions.sessions}
         isCollapsed={isSidebarCollapsed}
         onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
       />
@@ -76,10 +120,15 @@ function App() {
           messages={chat.messages}
           streamingContent={chat.streamingContent}
           isStreaming={chat.isStreaming}
+          error={chat.error}
+          onRetry={chat.retry}
         />
         <InputArea
           onSend={chat.handleSend}
           disabled={chat.isStreaming}
+          currentAgent={sessions.currentSessionAgent}
+          currentModel={currentModel}
+          onSelectModel={handleSelectModel}
         />
       </div>
       <SettingsModal

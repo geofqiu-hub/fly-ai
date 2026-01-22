@@ -1,20 +1,20 @@
 import React from 'react'
 import { Settings, Plus, MessageSquare, Trash2, Menu } from 'lucide-react'
 import clsx from 'clsx'
+import type { Session } from '../hooks/useSessions'
 
 interface Props {
   onOpenSettings: () => void
   onSelectSession: (id: string) => void
+  onDeleteSession: (id: string) => void
   currentSessionId: string | null
   onNewSession: () => void
+  sessions: Session[]
   isCollapsed?: boolean
   onToggleCollapse?: () => void
 }
 
-export function Sidebar({ onOpenSettings, onSelectSession, currentSessionId, onNewSession, isCollapsed = false, onToggleCollapse }: Props) {
-  // TODO: 实现会话加载逻辑
-  const sessions: any[] = []
-
+export function Sidebar({ onOpenSettings, onSelectSession, onDeleteSession, currentSessionId, onNewSession, sessions, isCollapsed = false, onToggleCollapse }: Props) {
   return (
     <div className={clsx(
       "bg-claude-bg flex flex-col h-full transition-all duration-300 ease-in-out",
@@ -60,17 +60,28 @@ export function Sidebar({ onOpenSettings, onSelectSession, currentSessionId, onN
               <div className="text-xs font-medium text-gray-500 mb-2 px-2 uppercase tracking-wider">
                 对话历史
               </div>
-              {/* TODO: 实现会话列表渲染 */}
               {sessions.map(session => (
                 <div
                     key={session.id}
-                    className="group w-full text-left px-3 py-2 rounded-md text-sm mb-1 truncate flex items-center justify-between cursor-pointer transition-colors bg-white shadow-sm text-gray-900 font-medium"
+                    onClick={() => onSelectSession(session.id)}
+                    className={clsx(
+                      "group w-full text-left px-3 py-2 rounded-md text-sm mb-1 truncate flex items-center justify-between cursor-pointer transition-colors",
+                      currentSessionId === session.id
+                        ? "bg-white shadow-sm text-gray-900 font-medium"
+                        : "text-gray-600 hover:bg-black/5"
+                    )}
                 >
                    <div className="flex items-center gap-2 truncate flex-1">
-                       <MessageSquare size={14} className="opacity-50 shrink-0" />
-                       <span className="truncate">{session.title || 'New Chat'}</span>
+                      <MessageSquare size={14} className="opacity-50 shrink-0" />
+                      <span className="truncate">{session.title || 'New Chat'}</span>
                    </div>
-                   <button className="opacity-0 group-hover:opacity-100 p-1 hover:bg-black/10 rounded text-gray-400 hover:text-red-500 transition-all">
+                   <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onDeleteSession(session.id)
+                    }}
+                    className="opacity-0 group-hover:opacity-100 p-1 hover:bg-black/10 rounded text-gray-400 hover:text-red-500 transition-all"
+                  >
                        <Trash2 size={12} />
                    </button>
                 </div>
@@ -105,4 +116,5 @@ export function Sidebar({ onOpenSettings, onSelectSession, currentSessionId, onN
       )}
     </div>
   )
-}
+ }
+
