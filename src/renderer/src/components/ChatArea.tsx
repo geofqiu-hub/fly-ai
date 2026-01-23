@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Image as ImageIcon, User, Bot, AlertCircle, RefreshCw, Paperclip, X, ZoomIn, Download } from 'lucide-react'
+import { Image as ImageIcon, User, Bot, AlertCircle, RefreshCw, Paperclip, X, ZoomIn, Download, Brain, ChevronDown } from 'lucide-react'
 import clsx from 'clsx'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -10,21 +10,27 @@ import type { Message } from '../types/chat'
 interface Props {
   messages: Message[]
   streamingContent: string
+  streamingThought?: string
   isStreaming: boolean
   activeTool?: { name: string; args: any } | null
   error: string | null
   onRetry?: () => void
 }
 
-export function ChatArea({ messages, streamingContent, isStreaming, activeTool, error, onRetry }: Props) {
+export function ChatArea({ messages, streamingContent, streamingThought, isStreaming, activeTool, error, onRetry }: Props) {
   const scrollRef = React.useRef<HTMLDivElement>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [expandedThoughts, setExpandedThoughts] = useState<Record<string, boolean>>({})
+
+  const toggleThought = (id: string) => {
+    setExpandedThoughts(prev => ({ ...prev, [id]: !prev[id] }))
+  }
 
   React.useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
-  }, [messages, streamingContent, error])
+  }, [messages, streamingContent, streamingThought, error])
 
   const renderCode = ({ node, inline, className, children, ...props }: any) => {
     const content = String(children);
@@ -177,6 +183,27 @@ export function ChatArea({ messages, streamingContent, isStreaming, activeTool, 
                   <div className={clsx("text-gray-800 min-w-0 flex flex-col gap-3", msg.role === 'assistant' ? "prose prose-claude max-w-none" : "whitespace-pre-wrap leading-relaxed")}>
                     {msg.role === 'assistant' ? (
                       <div className="space-y-4">
+                        {msg.thought && (
+                          <div className="bg-[#f9f9f8] rounded-xl border border-black/5 overflow-hidden transition-all">
+                            <button 
+                              onClick={() => toggleThought(msg.id)}
+                              className="w-full px-4 py-2.5 flex items-center justify-between text-[11px] font-bold text-gray-400 uppercase tracking-widest hover:bg-black/[0.02] transition-colors"
+                            >
+                              <div className="flex items-center gap-2">
+                                <Brain size={14} className="text-claude-accent/60" />
+                                <span>Thought Process</span>
+                              </div>
+                              <ChevronDown size={14} className={clsx("transition-transform duration-200", expandedThoughts[msg.id] && "rotate-180")} />
+                            </button>
+                            {expandedThoughts[msg.id] && (
+                              <div className="px-4 pb-4 text-sm text-gray-500 italic leading-relaxed border-t border-black/[0.03] pt-3">
+                                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                  {msg.thought}
+                                </ReactMarkdown>
+                              </div>
+                            )}
+                          </div>
+                        )}
                         <ReactMarkdown
                           remarkPlugins={[remarkGfm]}
                           urlTransform={(uri) => {
@@ -237,6 +264,20 @@ export function ChatArea({ messages, streamingContent, isStreaming, activeTool, 
               </div>
               <div className="flex-1 min-w-0">
                 <div className="prose prose-claude max-w-none text-gray-800">
+                  {streamingThought && (
+                    <div className="mb-4 bg-[#f9f9f8] rounded-xl border border-black/5 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-300">
+                      <div className="px-4 py-2.5 flex items-center gap-2 text-[11px] font-bold text-claude-accent uppercase tracking-widest bg-claude-accent/5">
+                        <Brain size={14} className="animate-pulse" />
+                        <span>Thinking...</span>
+                      </div>
+                      <div className="px-4 py-3 text-sm text-gray-500 italic leading-relaxed border-t border-black/[0.03]">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                          {streamingThought}
+                        </ReactMarkdown>
+                      </div>
+                    </div>
+                  )}
+
                   {streamingContent ? (
                     <ReactMarkdown
                       remarkPlugins={[remarkGfm]}

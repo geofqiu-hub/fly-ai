@@ -119,15 +119,15 @@ export function setupIPC() {
     return stmt.all(sessionId)
   })
 
-  ipcMain.handle('save-message', (_, { sessionId, role, content, type = 'text', attachments = null, modelId, agentId, parts, tokensUsed, cost, isSummary = false }) => {
+  ipcMain.handle('save-message', (_, { sessionId, role, content, thought = null, type = 'text', attachments = null, modelId, agentId, parts, tokensUsed, cost, isSummary = false }) => {
     const id = uuidv4()
     const stmt = db.prepare(`
-      INSERT INTO messages (id, session_id, role, content, type, attachments, model_id, agent_id, parts, tokens_used, cost, is_summary, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO messages (id, session_id, role, content, thought, type, attachments, model_id, agent_id, parts, tokens_used, cost, is_summary, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     const attachmentsStr = attachments ? JSON.stringify(attachments) : null
     const partsStr = parts ? JSON.stringify(parts) : null
-    stmt.run(id, sessionId, role, content, type, attachmentsStr, modelId, agentId, partsStr, tokensUsed, cost, isSummary ? 1 : 0, Date.now())
+    stmt.run(id, sessionId, role, content, thought, type, attachmentsStr, modelId, agentId, partsStr, tokensUsed, cost, isSummary ? 1 : 0, Date.now())
     return id
   })
 

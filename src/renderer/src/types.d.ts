@@ -8,6 +8,7 @@ export interface IElectronAPI {
     sessionId: string;
     role: string;
     content: string;
+    thought?: string;
     type?: string;
     attachments?: any[]
     modelId?: string

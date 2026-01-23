@@ -46,6 +46,12 @@ try {
   // Column likely already exists, ignore
 }
 
+try {
+  db.exec('ALTER TABLE messages ADD COLUMN thought TEXT')
+} catch (error) {
+  // Column likely already exists, ignore
+}
+
 // Migration: Add agents table and session-agent relationship
 db.exec(`
   CREATE TABLE IF NOT EXISTS agents (

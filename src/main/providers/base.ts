@@ -1,5 +1,5 @@
 export interface StreamEvent {
-  type: 'start' | 'text-delta' | 'file-delta' | 'tool-call' | 'tool-result' | 'finish' | 'error'
+  type: 'start' | 'text-delta' | 'thought-delta' | 'file-delta' | 'tool-call' | 'tool-result' | 'finish' | 'error'
   data?: any
 }
 

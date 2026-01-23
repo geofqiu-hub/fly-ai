@@ -19,6 +19,7 @@ export const useChat = ({
 }: UseChatProps) => {
   const [messages, setMessages] = useState<Message[]>([])
   const [streamingContent, setStreamingContent] = useState('')
+  const [streamingThought, setStreamingThought] = useState('')
   const [isStreaming, setIsStreaming] = useState(false)
   const [activeTool, setActiveTool] = useState<{ name: string; args: any } | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -96,6 +97,7 @@ export const useChat = ({
 
     setIsStreaming(true)
     setStreamingContent('')
+    setStreamingThought('')
     setActiveTool(null)
 
     const currentMsgs = await window.api.getMessages(sessionId)
@@ -151,6 +153,7 @@ export const useChat = ({
           sessionId: sid,
           role: 'assistant',
           content: event.data.content,
+          thought: streamingThought || undefined,
           type: 'text',
           modelId
         })
@@ -165,9 +168,12 @@ export const useChat = ({
           })
           .finally(() => {
             setStreamingContent('')
+            setStreamingThought('')
             setIsStreaming(false)
             setActiveTool(null)
           })
+      } else if (event.type === 'thought-delta') {
+        setStreamingThought(prev => prev + event.data)
       } else if (event.type === 'tool-call') {
         setActiveTool({ name: event.data.name, args: event.data.args })
       } else if (event.type === 'tool-result') {
@@ -252,6 +258,7 @@ export const useChat = ({
   return {
     messages,
     streamingContent,
+    streamingThought,
     isStreaming,
     activeTool,
     error,

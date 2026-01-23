@@ -3,6 +3,7 @@ import path from 'path'
 import fs from 'fs'
 import { setupIPC } from './ipc'
 import { setupStreamIPC, streamManager } from './stream'
+import { setupUpdater } from './updater'
 import { GeminiProvider } from './providers/gemini-provider'
 import { providerManager } from './providers/provider-manager'
 import { ChatStorage } from './utils/chat-storage'
@@ -123,6 +124,11 @@ app.whenReady().then(() => {
   setupIPC()
   console.log('[Main] Registering providers...')
   providerManager.registerProvider(new GeminiProvider())
+
+  // Setup auto-updater
+  if (process.env.NODE_ENV !== 'development') {
+    setupUpdater()
+  }
 
   // Set Dock icon for macOS in development
   if (process.platform === 'darwin' && process.env.NODE_ENV === 'development' && app.dock) {

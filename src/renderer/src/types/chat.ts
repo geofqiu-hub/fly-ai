@@ -13,6 +13,7 @@ export interface Message {
   sessionId: string
   role: 'user' | 'assistant' | 'system'
   content: string
+  thought?: string
   parts?: MessagePart[]
   modelId?: string
   agentId?: string
@@ -57,6 +58,6 @@ export interface StreamCallbacks {
 }
 
 export interface StreamEvent {
-  type: 'start' | 'text-delta' | 'tool-call' | 'tool-result' | 'finish' | 'error'
+  type: 'start' | 'text-delta' | 'thought-delta' | 'tool-call' | 'tool-result' | 'finish' | 'error'
   data?: any
 }

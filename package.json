@@ -1,17 +1,24 @@
 {
   "name": "flyai",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/geofqiu-hub/fly-ai.git"
+  },
   "main": "dist/main/index.js",
   "scripts": {
     "postinstall": "npx @electron/rebuild -f -w better-sqlite3",
-    "build:main": "esbuild src/main/index.ts --bundle --platform=node --outfile=dist/main/index.js --external:electron --external:better-sqlite3",
+    "clean": "rm -rf dist/main dist/preload dist/renderer dist/package",
+    "build:main": "esbuild src/main/index.ts --bundle --platform=node --outfile=dist/main/index.js --external:electron --external:better-sqlite3 --external:sharp",
     "build:preload": "esbuild src/preload/index.ts --bundle --platform=node --outfile=dist/preload/index.js --external:electron",
     "build:renderer": "tsc && vite build",
-    "build": "npm run build:main && npm run build:preload && npm run build:renderer",
+    "build": "npm run clean && npm run build:main && npm run build:preload && npm run build:renderer",
     "dev:renderer": "vite",
     "dev:main": "NODE_ENV=development npm run build:main && npm run build:preload && NODE_ENV=development electron dist/main/index.js",
-    "dev": "concurrently -n \"renderer,main\" -c \"cyan,magenta\" \"npm run dev:renderer\" \"wait-on tcp:5173 && npm run dev:main\""
+    "dev": "concurrently -n \"renderer,main\" -c \"cyan,magenta\" \"npm run dev:renderer\" \"wait-on tcp:5173 && npm run dev:main\"",
+    "dist": "npm run build && electron-builder",
+    "publish": "npm run build && electron-builder --win --mac -p always"
   },
   "keywords": [],
   "author": "",
@@ -23,16 +30,50 @@
     "directories": {
       "output": "dist/package"
     },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "geofqiu-hub",
+        "repo": "fly-ai"
+      }
+    ],
     "files": [
-      "dist/**/*",
+      "dist/main/**/*",
+      "dist/preload/**/*",
+      "dist/renderer/**/*",
       "package.json"
+    ],
+    "asar": true,
+    "asarUnpack": [
+      "**/node_modules/better-sqlite3/**/*",
+      "**/node_modules/sharp/**/*"
     ],
     "mac": {
       "icon": "build/icon.icns",
-      "category": "public.app-category.utilities"
+      "category": "public.app-category.utilities",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ]
     },
     "win": {
-      "icon": "build/icon.ico"
+      "icon": "build/icon.ico",
+      "target": [
+        "nsis",
+        "zip"
+      ]
     },
     "linux": {
       "icon": "build/icon.png",
@@ -65,6 +106,8 @@
     "better-sqlite3": "^12.6.2",
     "clsx": "^2.1.1",
     "dotenv": "^17.2.3",
+    "electron-log": "^5.4.3",
+    "electron-updater": "^6.7.3",
     "lucide-react": "^0.562.0",
     "openai": "^6.16.0",
     "react": "^19.2.3",

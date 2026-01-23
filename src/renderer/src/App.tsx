@@ -120,6 +120,7 @@ function App() {
         <ChatArea
           messages={chat.messages}
           streamingContent={chat.streamingContent}
+          streamingThought={chat.streamingThought}
           isStreaming={chat.isStreaming}
           activeTool={chat.activeTool}
           error={chat.error}

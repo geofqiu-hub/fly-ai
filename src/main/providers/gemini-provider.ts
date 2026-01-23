@@ -23,14 +23,29 @@ export class GeminiProvider implements Provider {
     try {
       this.initialize(config.apiKey)
       
-      const tools = config.modelId === 'gemini-3-pro-image-preview' 
-        ? undefined 
-        : [{ functionDeclarations: toolRegistry.getFunctionDeclarations() }]
+      const tools: any[] = []
+      if (config.modelId !== 'gemini-3-pro-image-preview') {
+        // 1. 注册自定义工具（如图片生成）
+        const functionDeclarations = toolRegistry.getFunctionDeclarations()
+        if (functionDeclarations.length > 0) {
+          tools.push({ functionDeclarations })
+        }
+        
+        // 2. 开启 Google Search Grounding
+        tools.push({
+          googleSearchRetrieval: {
+            dynamicRetrievalConfig: {
+              mode: 'MODE_DYNAMIC',
+              dynamicThreshold: 0.3, // 动态阈值，模型认为需要时才搜索
+            },
+          },
+        })
+      }
 
       const model = this.genAI!.getGenerativeModel({
         model: config.modelId,
         systemInstruction: systemPrompt,
-        tools
+        tools: tools.length > 0 ? tools : undefined
       }, config.baseUrl ? { baseUrl: config.baseUrl } : undefined)
 
       yield { type: 'start', data: { modelId: config.modelId } }
@@ -54,6 +69,13 @@ export class GeminiProvider implements Provider {
         // Handle potential multimodal parts in the chunk (e.g. Tool Calls, Generated Images)
         if (chunk.candidates?.[0]?.content?.parts) {
           for (const part of chunk.candidates[0].content.parts) {
+            // 捕获思考过程 (Gemini 2.0 Thinking 模型)
+            if ((part as any).thought) {
+              const thought = (part as any).text || '';
+              yield { type: 'thought-delta', data: thought }
+              continue
+            }
+
             // Handle Tool Calls
             if (part.functionCall) {
               const { name, args } = part.functionCall

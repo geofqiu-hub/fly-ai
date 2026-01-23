@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('api', {
     sessionId: string
     role: string
     content: string
+    thought?: string
     type?: string
     attachments?: any[]
     modelId?: string
