@@ -26,9 +26,10 @@ interface Props {
   currentAgent?: Agent | null
   currentModel?: Model | null
   onSelectModel?: (model: Model | null) => void
+  canChangeModel?: boolean
 }
 
-export function InputArea({ onSend, disabled, currentAgent, currentModel, onSelectModel }: Props) {
+export function InputArea({ onSend, disabled, currentAgent, currentModel, onSelectModel, canChangeModel = true }: Props) {
   const [text, setText] = useState('')
   const [attachments, setAttachments] = useState<Attachment[]>([])
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -195,6 +196,7 @@ export function InputArea({ onSend, disabled, currentAgent, currentModel, onSele
                     <ModelSelector
                       selectedModelId={currentModel?.modelId}
                       onSelectModel={onSelectModel || (() => {})}
+                      disabled={!canChangeModel}
                     />
                     <input 
                       type="file" 

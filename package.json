@@ -38,12 +38,6 @@
         "repo": "fly-ai"
       }
     ],
-    "files": [
-      "dist/main/**/*",
-      "dist/preload/**/*",
-      "dist/renderer/**/*",
-      "package.json"
-    ],
     "asar": true,
     "asarUnpack": [
       "**/node_modules/better-sqlite3/**/*",
@@ -55,11 +49,17 @@
       "target": [
         {
           "target": "dmg",
-          "arch": "arm64"
+          "arch": [
+            "arm64",
+            "x64"
+          ]
         },
         {
           "target": "zip",
-          "arch": "arm64"
+          "arch": [
+            "arm64",
+            "x64"
+          ]
         }
       ]
     },
@@ -68,11 +68,15 @@
       "target": [
         {
           "target": "nsis",
-          "arch": "x64"
+          "arch": [
+            "x64"
+          ]
         },
         {
           "target": "zip",
-          "arch": "x64"
+          "arch": [
+            "x64"
+          ]
         }
       ]
     },

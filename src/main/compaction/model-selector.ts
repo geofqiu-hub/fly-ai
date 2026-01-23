@@ -3,12 +3,15 @@ import { Provider, Model } from '../providers/base'
 export const PROVIDER_MODEL_CAPABILITIES: Record<string, any> = {
   gemini: {
     models: {
+      'gemini-3-flash-preview': { available: true, isCompact: true, cost: 0.0000001, speed: 'fast' },
+      'gemini-3-pro-preview': { available: true, isCompact: false, cost: 0.000001, speed: 'medium' },
       'gemini-2.0-flash-exp': { available: true, isCompact: true, cost: 0.000001, speed: 'fast' },
       'gemini-1.5-pro': { available: true, isCompact: false, cost: 0.0000025, speed: 'medium' },
       'gemini-1.5-flash': { available: true, isCompact: true, cost: 0.00000015, speed: 'fast' },
       'gemini-1.5-flash-8b': { available: true, isCompact: true, cost: 0.0000000375, speed: 'fast' },
     },
     compactionPriority: [
+      'gemini-3-flash-preview',
       'gemini-1.5-flash-8b',
       'gemini-2.0-flash-exp',
       'gemini-1.5-flash'
@@ -177,6 +180,8 @@ export class CompactionModelSelector {
     }
     
     return [
+      'gemini-3-flash-preview',
+      'gemini-3-pro-preview',
       'gemini-2.0-flash-exp',
       'gemini-1.5-pro',
       'gemini-1.5-flash',

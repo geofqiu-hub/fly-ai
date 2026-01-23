@@ -49,6 +49,7 @@ export interface IElectronAPI {
   getModels: (provider?: string) => Promise<any[]>
   getModel: (modelId: string) => Promise<any>
   updateModelStatus: (data: { modelId: string; isEnabled: boolean }) => Promise<void>
+  updateModelId: (data: { id: string; modelId: string }) => Promise<void>
   // Stream APIs
   startStream: (data: {
     sessionId: string

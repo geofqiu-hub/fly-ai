@@ -278,11 +278,9 @@ db.exec(`
 // Initialize default models
 const initModels = () => {
   const models = [
-    ['gemini-2.5-pro', 'gemini', 'gemini-2.5-pro', 'Gemini 2.5 Pro', JSON.stringify({ text: true, image: true, tools: true }), 2000000, 0.000001, 0.000001, 1],
-    ['gemini-2.5-flash', 'gemini', 'gemini-2.5-flash', 'Gemini 2.5 Flash', JSON.stringify({ text: true, image: true, tools: true }), 1000000, 0.0000001, 0.0000001, 1],
-    ['gemini-3-pro-preview', 'gemini', 'gemini-3-pro-preview', 'Gemini 3 Pro Preview', JSON.stringify({ text: true, image: true, tools: true }), 2000000, 0.000001, 0.000001, 1],
-    ['gemini-3-flash-preview', 'gemini', 'gemini-3-flash-preview', 'Gemini 3 Flash Preview', JSON.stringify({ text: true, image: true, tools: true }), 1000000, 0.0000001, 0.0000001, 1],
-    ['gemini-3-pro-image-preview', 'gemini', 'gemini-3-pro-image-preview', 'Gemini 3 Pro Image Preview', JSON.stringify({ text: true, image: true, tools: true }), 2000000, 0.000001, 0.000001, 1],
+    ['gemini-3-flash-preview', 'gemini', 'gemini-3-flash-preview', '快速', JSON.stringify({ text: true, image: true, tools: true }), 1000000, 0.0000001, 0.0000001, 1],
+    ['gemini-3-pro-preview', 'gemini', 'gemini-3-pro-preview', 'Pro', JSON.stringify({ text: true, image: true, tools: true }), 2000000, 0.000001, 0.000001, 1],
+    ['gemini-3-pro-image-preview', 'gemini', 'gemini-3-pro-image-preview', '图片', JSON.stringify({ text: true, image: true, tools: true }), 2000000, 0.000001, 0.000001, 1],
   ]
   
   const modelIds = models.map(m => m[2])

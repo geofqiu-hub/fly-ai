@@ -11,32 +11,43 @@ export function SettingsModal({ isOpen, onClose, onSettingsChanged }: Props) {
   const [activeTab, setActiveTab] = useState<'models' | 'agents'>('models')
   const [apiKey, setApiKey] = useState('')
   const [baseUrl, setBaseUrl] = useState('')
+  const [geminiModels, setGeminiModels] = useState<any[]>([])
   const [isSaving, setIsSaving] = useState(false)
   const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle')
 
   useEffect(() => {
-    const loadApiKey = async () => {
+    const loadSettings = async () => {
       const config = await window.api.getApiConfig('gemini')
       if (config) {
         setApiKey(config.api_key || '')
         setBaseUrl(config.base_url || '')
       }
+
+      const models = await window.api.getModels()
+      setGeminiModels(models)
     }
-    loadApiKey()
-  }, [])
+    if (isOpen) {
+      loadSettings()
+    }
+  }, [isOpen])
 
-  const handleSaveApiKey = async () => {
-    if (!apiKey.trim()) return
-
+  const handleSaveSettings = async () => {
     setIsSaving(true)
     setSaveStatus('idle')
 
     try {
+      // Save API Config
       await window.api.saveApiConfig({
         provider: 'gemini',
         apiKey: apiKey.trim(),
         baseUrl: baseUrl.trim() || undefined
       })
+
+      // Save Model Mappings
+      for (const model of geminiModels) {
+        await window.api.updateModelId({ id: model.id, modelId: model.modelId })
+      }
+
       setSaveStatus('success')
       onSettingsChanged?.()
       setTimeout(() => setSaveStatus('idle'), 2000)
@@ -46,6 +57,10 @@ export function SettingsModal({ isOpen, onClose, onSettingsChanged }: Props) {
     } finally {
       setIsSaving(false)
     }
+  }
+
+  const handleModelIdChange = (id: string, newModelId: string) => {
+    setGeminiModels(prev => prev.map(m => m.id === id ? { ...m, modelId: newModelId } : m))
   }
 
   if (!isOpen) return null
@@ -73,7 +88,7 @@ export function SettingsModal({ isOpen, onClose, onSettingsChanged }: Props) {
               }`}
             >
               <Key size={16} />
-              API Keys
+              Models & API
             </button>
 
             <button
@@ -92,74 +107,96 @@ export function SettingsModal({ isOpen, onClose, onSettingsChanged }: Props) {
           <div className="flex-1 p-6 overflow-y-auto">
             {/* Models Panel */}
             {activeTab === 'models' && (
-              <div className="space-y-6">
-                <div>
-                  <h3 className="text-base font-medium text-gray-900">Gemini API Key</h3>
-                  <p className="text-xs text-gray-500">配置您的 Google Gemini API 密钥以使用 AI 功能</p>
-                </div>
-
+              <div className="space-y-8">
+                {/* API Section */}
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">API Key</label>
-                    <input
-                      type="password"
-                      value={apiKey}
-                      onChange={(e) => setApiKey(e.target.value)}
-                      placeholder="输入您的 Gemini API Key"
-                      className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-claude-accent/20 focus:border-claude-accent/50 text-sm font-mono"
-                    />
+                    <h3 className="text-base font-medium text-gray-900">Gemini API Config</h3>
+                    <p className="text-xs text-gray-500">配置您的 Google Gemini API 密钥和基础 URL</p>
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Base URL (可选)
-                    </label>
-                    <input
-                      type="text"
-                      value={baseUrl}
-                      onChange={(e) => setBaseUrl(e.target.value)}
-                      placeholder="默认: https://generativelanguage.googleapis.com"
-                      className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-claude-accent/20 focus:border-claude-accent/50 text-sm font-mono"
-                    />
-                    <p className="mt-1 text-xs text-gray-500">
-                      如果您使用代理，请在此输入代理的基础 URL
-                    </p>
-                  </div>
+                  <div className="grid grid-cols-1 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">API Key</label>
+                      <input
+                        type="password"
+                        value={apiKey}
+                        onChange={(e) => setApiKey(e.target.value)}
+                        placeholder="输入您的 Gemini API Key"
+                        className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-claude-accent/20 focus:border-claude-accent/50 text-sm font-mono"
+                      />
+                    </div>
 
-                  <div className="flex items-start gap-2 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                    <AlertCircle className="text-blue-600 mt-0.5 shrink-0" size={16} />
-                    <div className="text-xs text-blue-700">
-                      <p className="font-medium mb-1">如何获取 API Key？</p>
-                      <p>1. 访问 <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="underline">Google AI Studio</a></p>
-                      <p>2. 登录您的 Google 账户</p>
-                      <p>3. 点击 "Create API Key" 创建密钥</p>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                        Base URL (可选)
+                      </label>
+                      <input
+                        type="text"
+                        value={baseUrl}
+                        onChange={(e) => setBaseUrl(e.target.value)}
+                        placeholder="默认: https://generativelanguage.googleapis.com"
+                        className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-claude-accent/20 focus:border-claude-accent/50 text-sm font-mono"
+                      />
                     </div>
                   </div>
                 </div>
 
+                {/* Model Mappings Section */}
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="text-base font-medium text-gray-900">Model Mappings</h3>
+                    <p className="text-xs text-gray-500">自定义快速、思考等选项对应的具体模型 ID</p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    {geminiModels.map((model) => (
+                      <div key={model.id} className="p-3 bg-gray-50 rounded-lg border border-gray-100">
+                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
+                          {model.name}
+                        </label>
+                        <input
+                          type="text"
+                          value={model.modelId}
+                          onChange={(e) => handleModelIdChange(model.id, e.target.value)}
+                          className="w-full px-3 py-1.5 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-claude-accent/20 text-xs font-mono"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-2 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <AlertCircle className="text-blue-600 mt-0.5 shrink-0" size={16} />
+                  <div className="text-xs text-blue-700">
+                    <p className="font-medium mb-1">提示</p>
+                    <p>修改模型 ID 后，点击下方保存按钮生效。模型 ID 必须是 Google Gemini 支持的有效标识符。</p>
+                  </div>
+                </div>
+
                 <button
-                  onClick={handleSaveApiKey}
+                  onClick={handleSaveSettings}
                   disabled={isSaving || !apiKey.trim()}
-                  className={`flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                  className={`flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg text-sm font-medium transition-all shadow-sm ${
                     isSaving || !apiKey.trim()
                       ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                      : 'bg-claude-accent text-white hover:opacity-90'
+                      : 'bg-claude-accent text-white hover:opacity-90 active:scale-[0.98]'
                   }`}
                 >
                   {isSaving ? (
                     <>
                       <Loader2 className="animate-spin" size={16} />
-                      保存中...
+                      Saving Changes...
                     </>
                   ) : saveStatus === 'success' ? (
                     <>
                       <Check size={16} />
-                      已保存
+                      All Settings Saved
                     </>
                   ) : (
                     <>
                       <Save size={16} />
-                      保存 API Key
+                      Save Settings
                     </>
                   )}
                 </button>

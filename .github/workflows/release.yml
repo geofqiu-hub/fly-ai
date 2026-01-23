@@ -37,8 +37,8 @@ jobs:
         run: |
           npm run build
           if [ "$RUNNER_OS" == "macOS" ]; then
-            npx electron-builder --mac -p always
+            npx electron-builder --mac --universal -p always
           else
-            npx electron-builder --win -p always
+            npx electron-builder --win --x64 -p always
           fi
         shell: bash

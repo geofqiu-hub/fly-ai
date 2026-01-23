@@ -74,11 +74,14 @@ export const useChat = ({
       return
     }
 
-    const modelId = currentModel?.modelId || 'gemini-1.5-flash-002'
+    const modelId = currentModel?.modelId || 'gemini-3-flash-preview'
     const providerId = currentModel?.provider || 'gemini'
 
-    if (isNewSession && autoRenameSession) {
-      autoRenameSession(sessionId, text || 'New Image Chat', providerId, { apiKey, baseUrl, modelId })
+    // Generate title if this is the first message in the session (messages.length is 0)
+    if (messages.length === 0 && autoRenameSession && sessionId) {
+      console.log('[useChat] Triggering auto-rename for first message')
+      // Use gemini-2.5-flash-lite for title generation as requested
+      autoRenameSession(sessionId, text || 'New Image Chat', providerId, { apiKey, baseUrl, modelId: 'gemini-2.5-flash-lite' })
     }
 
     console.log('[useChat] Saving user message...')
@@ -130,7 +133,10 @@ export const useChat = ({
 
   useEffect(() => {
     if (currentSessionId) {
+      setMessages([]) // Clear messages when session changes to avoid flashing old content
       loadMessages(currentSessionId)
+    } else {
+      setMessages([])
     }
   }, [currentSessionId, loadMessages])
 
@@ -146,7 +152,7 @@ export const useChat = ({
       if (sessionId !== currentSessionId) return
 
       if (event.type === 'finish') {
-        const modelId = currentModel?.modelId || 'gemini-1.5-flash'
+        const modelId = currentModel?.modelId || 'gemini-3-flash-preview'
         const sid = currentSessionId || 'default'
         
         window.api.saveMessage({
@@ -227,7 +233,7 @@ export const useChat = ({
         return
       }
 
-      const modelId = currentModel?.modelId || 'gemini-1.5-flash-002'
+      const modelId = currentModel?.modelId || 'gemini-3-flash-preview'
       
       // 获取当前所有消息作为上下文
       const msgs = await window.api.getMessages(currentSessionId)

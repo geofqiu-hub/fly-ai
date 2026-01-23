@@ -7,9 +7,10 @@ interface Props {
   selectedModelId?: string | null
   onSelectModel: (model: Model | null) => void
   models?: Model[]
+  disabled?: boolean
 }
 
-export function ModelSelector({ selectedModelId, onSelectModel, models = [] }: Props) {
+export function ModelSelector({ selectedModelId, onSelectModel, models = [], disabled = false }: Props) {
   const [isOpen, setIsOpen] = useState(false)
   const [loadedModels, setLoadedModels] = useState<Model[]>([])
 
@@ -31,14 +32,21 @@ export function ModelSelector({ selectedModelId, onSelectModel, models = [] }: P
   return (
     <div className="relative">
       <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-3 py-1.5 bg-gray-100/80 text-gray-700 rounded-lg text-xs font-medium hover:bg-gray-200/80 transition-all border border-black/5"
+        onClick={() => !disabled && setIsOpen(!isOpen)}
+        disabled={disabled}
+        className={clsx(
+          "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all border border-black/5",
+          disabled 
+            ? "bg-gray-50 text-gray-400 cursor-not-allowed border-transparent" 
+            : "bg-gray-100/80 text-gray-700 hover:bg-gray-200/80"
+        )}
+        title={disabled ? "Cannot change model once conversation has started" : undefined}
       >
         <span className="truncate max-w-[150px]">{selectedModel?.name || 'Select Model'}</span>
-        <ChevronDown size={14} className={clsx("transition-transform duration-200", isOpen && "rotate-180")} />
+        {!disabled && <ChevronDown size={14} className={clsx("transition-transform duration-200", isOpen && "rotate-180")} />}
       </button>
 
-      {isOpen && (
+      {isOpen && !disabled && (
         <>
           <div
             className="fixed inset-0 z-10"

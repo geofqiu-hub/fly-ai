@@ -253,4 +253,9 @@ export function setupIPC() {
     const stmt = db.prepare('UPDATE models SET is_enabled = ? WHERE model_id = ?')
     stmt.run(isEnabled ? 1 : 0, modelId)
   })
+
+  ipcMain.handle('update-model-id', (_, { id, modelId }) => {
+    const stmt = db.prepare('UPDATE models SET model_id = ? WHERE id = ?')
+    stmt.run(modelId, id)
+  })
 }

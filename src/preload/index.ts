@@ -51,6 +51,7 @@ contextBridge.exposeInMainWorld('api', {
   getModels: (provider?: string) => ipcRenderer.invoke('get-models', provider),
   getModel: (modelId: string) => ipcRenderer.invoke('get-model', modelId),
   updateModelStatus: (data: { modelId: string; isEnabled: boolean }) => ipcRenderer.invoke('update-model-status', data),
+  updateModelId: (data: { id: string; modelId: string }) => ipcRenderer.invoke('update-model-id', data),
   // Stream APIs
   startStream: (data: {
     sessionId: string

@@ -48,6 +48,36 @@ function App() {
     }
   }, [sessions.currentSessionAgent])
 
+  // 当会话切换时，同步模型选择
+  useEffect(() => {
+    const syncModel = async () => {
+      if (!sessions.currentSessionId) return
+
+      const msgs = await window.api.getMessages(sessions.currentSessionId)
+      const models = await window.api.getModels()
+      
+      if (msgs && msgs.length > 0) {
+        // 找到该对话中使用的模型（从消息记录中获取）
+        const lastMsgWithModel = [...msgs].reverse().find((m: any) => m.model_id)
+        if (lastMsgWithModel) {
+          const model = models.find((m: any) => m.modelId === lastMsgWithModel.model_id)
+          if (model) {
+            setCurrentModel(model)
+            return
+          }
+        }
+      }
+
+      // 如果是新对话或没找到模型记录，使用最后一次选择的模型
+      const lastModelId = await window.api.getSetting('last_used_model')
+      const defaultModelId = lastModelId || 'gemini-3-flash-preview'
+      const model = models.find((m: any) => m.modelId === defaultModelId) || models[0]
+      setCurrentModel(model)
+    }
+
+    syncModel()
+  }, [sessions.currentSessionId])
+
   // ========== 初始化 ==========
   const initApp = async () => {
     const sessionsCount = (await window.api.getSessions()).length
@@ -63,11 +93,11 @@ function App() {
         setCurrentModel(model)
       } else {
         // Fallback if model no longer exists
-        const defaultModel = models.find((m: any) => m.modelId === 'gemini-2.5-flash') || models[0]
+        const defaultModel = models.find((m: any) => m.modelId === 'gemini-3-flash-preview') || models[0]
         setCurrentModel(defaultModel)
       }
     } else {
-      const defaultModel = models.find((m: any) => m.modelId === 'gemini-2.5-flash') || models[0]
+      const defaultModel = models.find((m: any) => m.modelId === 'gemini-3-flash-preview') || models[0]
       setCurrentModel(defaultModel)
     }
   }
@@ -85,12 +115,13 @@ function App() {
     // Default to last used model for new sessions
     const lastModelId = await window.api.getSetting('last_used_model')
     const models = await window.api.getModels()
-    const defaultModelId = lastModelId || 'gemini-2.5-flash'
+    const defaultModelId = lastModelId || 'gemini-3-flash-preview'
     const model = models.find((m: any) => m.modelId === defaultModelId) || models[0]
     setCurrentModel(model)
   }
 
   const handleSelectModel = async (model: any) => {
+    if (chat.messages.length > 0) return
     setCurrentModel(model)
     if (model) {
       await window.api.saveSetting('last_used_model', model.modelId)
@@ -132,6 +163,7 @@ function App() {
           currentAgent={sessions.currentSessionAgent}
           currentModel={currentModel}
           onSelectModel={handleSelectModel}
+          canChangeModel={chat.messages.length === 0}
         />
       </div>
       <SettingsModal
