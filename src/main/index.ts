@@ -29,6 +29,7 @@ function createWindow(): void {
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 18, y: 18 },
     backgroundColor: '#faf9f6',
+    icon: path.join(__dirname, process.env.NODE_ENV === 'development' ? '../../build/icon.png' : '../renderer/favicon.ico'),
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
       sandbox: false,
@@ -122,6 +123,15 @@ app.whenReady().then(() => {
   setupIPC()
   console.log('[Main] Registering providers...')
   providerManager.registerProvider(new GeminiProvider())
+
+  // Set Dock icon for macOS in development
+  if (process.platform === 'darwin' && process.env.NODE_ENV === 'development' && app.dock) {
+    const iconPath = path.join(__dirname, '../../build/icon.png')
+    if (fs.existsSync(iconPath)) {
+      app.dock.setIcon(iconPath)
+    }
+  }
+
   console.log('[Main] Creating window...')
   createWindow()
 
