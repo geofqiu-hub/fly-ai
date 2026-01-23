@@ -5,6 +5,9 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: write
+
 jobs:
   release:
     runs-on: ${{ matrix.os }}
@@ -24,15 +27,18 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm install
+        run: |
+          npm install
+          npx @electron/rebuild -f -w better-sqlite3
 
       - name: Build and Publish
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          npm run build
           if [ "$RUNNER_OS" == "macOS" ]; then
-            npm run build && npx electron-builder --mac -p always
+            npx electron-builder --mac -p always
           else
-            npm run build && npx electron-builder --win -p always
+            npx electron-builder --win -p always
           fi
         shell: bash
