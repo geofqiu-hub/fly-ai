@@ -1,6 +1,6 @@
 {
   "name": "flyai",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "",
   "repository": {
     "type": "git",
@@ -53,20 +53,11 @@
       "icon": "build/icon.icns",
       "category": "public.app-category.utilities",
       "target": [
-        {
-          "target": "dmg",
-          "arch": [
-            "x64",
-            "arm64"
-          ]
-        },
-        {
-          "target": "zip",
-          "arch": [
-            "x64",
-            "arm64"
-          ]
-        }
+        "dmg",
+        "zip"
+      ],
+      "arch": [
+        "arm64"
       ]
     },
     "win": {
@@ -74,6 +65,9 @@
       "target": [
         "nsis",
         "zip"
+      ],
+      "arch": [
+        "x64"
       ]
     },
     "linux": {
