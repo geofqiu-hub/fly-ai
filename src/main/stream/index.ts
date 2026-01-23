@@ -113,6 +113,7 @@ export function setupStreamIPC() {
     
     try {
       await streamManager.startStream(sessionId, provider, {
+        sessionId, // 传递 sessionId 以便 Provider 保存文件
         config: {
           apiKey,
           baseUrl,

@@ -1,12 +1,24 @@
-import { app, shell, BrowserWindow } from 'electron'
+import { app, shell, BrowserWindow, protocol, net } from 'electron'
 import path from 'path'
+import fs from 'fs'
 import { setupIPC } from './ipc'
 import { setupStreamIPC, streamManager } from './stream'
 import { GeminiProvider } from './providers/gemini-provider'
 import { providerManager } from './providers/provider-manager'
+import { ChatStorage } from './utils/chat-storage'
+
+// 1. 强制在最顶层设置路径
+const userDataPath = path.join(app.getPath('appData'), 'flyai');
+app.setPath('userData', userDataPath);
+app.setName('flyai');
 
 // Fix for blank screen on macOS
 app.disableHardwareAcceleration()
+
+// Register custom protocol for chat files
+protocol.registerSchemesAsPrivileged([
+  { scheme: 'chat-file', privileges: { secure: true, standard: true, supportFetchAPI: true } }
+])
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -44,6 +56,66 @@ function createWindow(): void {
 
 app.whenReady().then(() => {
   console.log('[Main] App ready, setting up...')
+  console.log('[Main] UserData Path:', app.getPath('userData'))
+
+  // Ensure storage directory exists immediately
+  const storagePath = ChatStorage.getSessionDir('') // gets base storage/chats path
+  if (!fs.existsSync(storagePath)) {
+    fs.mkdirSync(storagePath, { recursive: true })
+    console.log('[Main] Created storage directory:', storagePath)
+  }
+
+  // Handle chat-file protocol
+  protocol.handle('chat-file', async (request) => {
+    try {
+      const url = new URL(request.url)
+      
+      // 增强鲁棒性：处理 host 为空（三个斜杠）或 host 存在（两个斜杠）的情况
+      let sessionId = url.host
+      let fileName = decodeURIComponent(url.pathname)
+      
+      if (!sessionId) {
+        // 如果是 chat-file:///sessionId/filename 格式
+        const parts = fileName.split('/').filter(Boolean)
+        sessionId = parts[0]
+        fileName = parts.slice(1).join('/')
+      } else {
+        // 如果是 chat-file://sessionId/filename 格式
+        fileName = fileName.slice(1) // 去掉开头的 /
+      }
+
+      const filePath = path.join(app.getPath('userData'), 'storage', 'chats', sessionId, fileName)
+      
+      console.log('[Protocol] Attempting to serve:', filePath)
+      
+      if (!fs.existsSync(filePath)) {
+        console.error('[Protocol] File not found on disk:', filePath)
+        return new Response('File not found', { status: 404 })
+      }
+
+      const buffer = await fs.promises.readFile(filePath)
+      const extension = path.extname(fileName).toLowerCase()
+      const mimeMap: Record<string, string> = {
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.gif': 'image/gif',
+        '.webp': 'image/webp'
+      }
+      const mimeType = mimeMap[extension] || 'application/octet-stream'
+
+      return new Response(buffer, {
+        headers: { 
+          'Content-Type': mimeType,
+          'Access-Control-Allow-Origin': '*' // 允许跨域请求
+        }
+      })
+    } catch (error) {
+      console.error('[Protocol] Critical Error:', error)
+      return new Response('Internal Server Error', { status: 500 })
+    }
+  })
+
   console.log('[Main] Calling setupStreamIPC...')
   setupStreamIPC()
   console.log('[Main] Calling setupIPC...')

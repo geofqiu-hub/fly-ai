@@ -1,5 +1,7 @@
 import { GoogleGenerativeAI, GenerativeModel, Part } from '@google/generative-ai'
 import { Provider, StreamEvent, ChatParams, MultimodalParams, Model, ProviderConfig } from './base'
+import { ChatStorage } from '../utils/chat-storage'
+import { toolRegistry } from '../tools'
 
 export class GeminiProvider implements Provider {
   id = 'gemini'
@@ -20,9 +22,15 @@ export class GeminiProvider implements Provider {
 
     try {
       this.initialize(config.apiKey)
+      
+      const tools = config.modelId === 'gemini-3-pro-image-preview' 
+        ? undefined 
+        : [{ functionDeclarations: toolRegistry.getFunctionDeclarations() }]
+
       const model = this.genAI!.getGenerativeModel({
         model: config.modelId,
-        systemInstruction: systemPrompt
+        systemInstruction: systemPrompt,
+        tools
       }, config.baseUrl ? { baseUrl: config.baseUrl } : undefined)
 
       yield { type: 'start', data: { modelId: config.modelId } }
@@ -43,29 +51,70 @@ export class GeminiProvider implements Provider {
 
       console.log('[GeminiProvider] Streaming started...')
       for await (const chunk of result.stream) {
-        // Handle text parts
-        const text = chunk.text()
-        if (text) {
-          fullContent += text
-          params.callbacks.onChunk(text)
-          yield { type: 'text-delta', data: text }
-        }
-
-        // Handle potential multimodal parts in the chunk
+        // Handle potential multimodal parts in the chunk (e.g. Tool Calls, Generated Images)
         if (chunk.candidates?.[0]?.content?.parts) {
           for (const part of chunk.candidates[0].content.parts) {
-            if (part.inlineData) {
-              const base64 = part.inlineData.data
+            // Handle Tool Calls
+            if (part.functionCall) {
+              const { name, args } = part.functionCall
+              console.log('[GeminiProvider] Tool call received:', name, args)
+              yield { type: 'tool-call', data: { id: name, name, args } }
+
+              const tool = toolRegistry.getTool(name)
+              if (tool) {
+                try {
+                  const result = await tool.execute(args, {
+                    sessionId: params.sessionId || 'default',
+                    apiKey: config.apiKey,
+                    baseUrl: config.baseUrl,
+                    onEvent: (event) => {
+                      // We can't yield from here directly.
+                      // But we could potentially use a shared event emitter if needed.
+                    }
+                  })
+                  yield { type: 'tool-result', data: { toolCallId: name, output: result } }
+                  
+                  if (result && result.content) {
+                    fullContent += result.content
+                    params.callbacks.onChunk(result.content)
+                    yield { type: 'text-delta', data: result.content }
+                  }
+                } catch (error) {
+                  console.error(`[GeminiProvider] Tool execution error (${name}):`, error)
+                  yield { type: 'tool-result', data: { toolCallId: name, output: { error: (error as Error).message }, isError: true } }
+                }
+              }
+            }
+
+            // Handle Generated Images
+            if (part.inlineData && params.sessionId) {
               const mimeType = part.inlineData.mimeType
-              const dataUrl = `data:${mimeType};base64,${base64}`
+              const base64 = part.inlineData.data
               
-              // We can append this as a markdown image to the content so it renders
-              const imgMarkdown = `\n![generated_image](${dataUrl})\n`
+              // 保存到磁盘，绑定到 sessionId
+              const localPath = await ChatStorage.saveBase64File(params.sessionId, base64, mimeType)
+              
+              // 构造 Markdown 语法发送给前端展示
+              const imgMarkdown = `\n![generated_image](${localPath})\n`
               fullContent += imgMarkdown
               params.callbacks.onChunk(imgMarkdown)
+              
+              yield { type: 'file-delta', data: { url: localPath, mimeType } }
               yield { type: 'text-delta', data: imgMarkdown }
             }
           }
+        }
+
+        // Handle text parts
+        try {
+          const text = chunk.text()
+          if (text) {
+            fullContent += text
+            params.callbacks.onChunk(text)
+            yield { type: 'text-delta', data: text }
+          }
+        } catch (e) {
+          // chunk.text() might throw if there's no text (e.g. only functionCall)
         }
       }
 

@@ -20,6 +20,7 @@ export const useChat = ({
   const [messages, setMessages] = useState<Message[]>([])
   const [streamingContent, setStreamingContent] = useState('')
   const [isStreaming, setIsStreaming] = useState(false)
+  const [activeTool, setActiveTool] = useState<{ name: string; args: any } | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const [lastInput, setLastInput] = useState<{ text: string, attachments: any[] } | null>(null)
@@ -56,6 +57,13 @@ export const useChat = ({
       return
     }
 
+    // 如果当前有错误，说明上次发送失败了
+    // 如果用户发送了新内容，我们应该先清理掉上次那个没有得到回复的错误消息
+    if (error && sessionId) {
+      console.log('[useChat] Cleaning up last failed message before sending new one')
+      await window.api.deleteLastMessage(sessionId)
+    }
+
     const apiConfig = await window.api.getApiConfig('gemini')
     const apiKey = apiConfig?.api_key
     const baseUrl = apiConfig?.base_url
@@ -88,6 +96,7 @@ export const useChat = ({
 
     setIsStreaming(true)
     setStreamingContent('')
+    setActiveTool(null)
 
     const currentMsgs = await window.api.getMessages(sessionId)
     const messagesHistory = parseMessages(currentMsgs)
@@ -157,7 +166,12 @@ export const useChat = ({
           .finally(() => {
             setStreamingContent('')
             setIsStreaming(false)
+            setActiveTool(null)
           })
+      } else if (event.type === 'tool-call') {
+        setActiveTool({ name: event.data.name, args: event.data.args })
+      } else if (event.type === 'tool-result') {
+        setActiveTool(null)
       } else if (event.type === 'error') {
         console.error('[useChat] Stream error event:', event.data)
         setIsStreaming(false)
@@ -178,6 +192,8 @@ export const useChat = ({
     window.api.onStreamError(handleError)
 
     return () => {
+      console.log('[useChat] Cleaning up stream listeners')
+      window.api.removeStreamListeners()
     }
   }, [currentSessionId, currentModel])
 
@@ -190,9 +206,8 @@ export const useChat = ({
   }, [])
 
   const retry = useCallback(async () => {
-    if (lastInput && currentSessionId) {
-      // For retry, we don't want to save the user message again because it's already there
-      // We just want to restart the stream for the current session
+    if (currentSessionId) {
+      // 重新开始流式传输，不保存新消息，因为最后一条已经是那个失败的 user 消息了
       setError(null)
       setIsStreaming(true)
       setStreamingContent('')
@@ -208,10 +223,9 @@ export const useChat = ({
 
       const modelId = currentModel?.modelId || 'gemini-1.5-flash-002'
       
+      // 获取当前所有消息作为上下文
       const msgs = await window.api.getMessages(currentSessionId)
-      const parsedMsgs = parseMessages(msgs)
-      const messagesHistory = parsedMsgs.slice(0, -1)
-      const lastUserMsg = parsedMsgs[parsedMsgs.length - 1]
+      const messagesHistory = parseMessages(msgs)
 
       const systemPrompt = currentSessionAgent?.system_prompt 
         ? `${currentSessionAgent.system_prompt}\n\nPlease output in standard Markdown format.`
@@ -222,7 +236,7 @@ export const useChat = ({
           sessionId: currentSessionId,
           providerId: 'gemini',
           modelId,
-          messages: [...messagesHistory, lastUserMsg],
+          messages: messagesHistory,
           systemPrompt,
           temperature: currentSessionAgent?.temperature,
           apiKey,
@@ -233,12 +247,13 @@ export const useChat = ({
         setIsStreaming(false)
       }
     }
-  }, [lastInput, currentSessionId, currentSessionAgent, currentModel])
+  }, [currentSessionId, currentSessionAgent, currentModel])
 
   return {
     messages,
     streamingContent,
     isStreaming,
+    activeTool,
     error,
     handleSend,
     retry,

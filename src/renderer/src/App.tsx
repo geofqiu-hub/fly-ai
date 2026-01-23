@@ -103,6 +103,7 @@ function App() {
         onOpenSettings={() => setIsSettingsOpen(true)}
         onSelectSession={handleLoadSession}
         onDeleteSession={sessions.deleteSession}
+        onRenameSession={sessions.updateSessionTitle}
         currentSessionId={sessions.currentSessionId}
         onNewSession={handleNewSession}
         sessions={sessions.sessions}
@@ -120,6 +121,7 @@ function App() {
           messages={chat.messages}
           streamingContent={chat.streamingContent}
           isStreaming={chat.isStreaming}
+          activeTool={chat.activeTool}
           error={chat.error}
           onRetry={chat.retry}
         />

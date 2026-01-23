@@ -20,6 +20,7 @@ export interface IElectronAPI {
   updateSessionTitle: (data: { sessionId: string; title: string }) => Promise<void>
   generateTitle: (data: { providerId: string; config: any; message: string }) => Promise<string>
   deleteSession: (sessionId: string) => Promise<void>
+  deleteLastMessage: (sessionId: string) => Promise<void>
   saveImage: (data: { base64: string; mimeType: string; sessionId: string }) => Promise<string>
   getImage: (sessionId: string, filename: string) => Promise<string | null>
   // Agent APIs
@@ -64,6 +65,8 @@ export interface IElectronAPI {
   onStreamChunk: (callback: (data: { sessionId: string; chunk: string }) => void) => void
   onStreamEvent: (callback: (data: { sessionId: string; event: any }) => void) => void
   onStreamError: (callback: (data: { sessionId: string; error: string }) => void) => void
+  downloadFile: (data: { url: string; filename?: string }) => Promise<{ success: boolean, path?: string, error?: string }>
+  removeStreamListeners: () => void
 }
 
 declare global {

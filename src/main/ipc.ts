@@ -1,11 +1,46 @@
-import { ipcMain, app } from 'electron'
+import { ipcMain, app, dialog } from 'electron'
 import db from './database'
 import { v4 as uuidv4 } from 'uuid'
 import { providerManager } from './providers/provider-manager'
+import { ChatStorage } from './utils/chat-storage'
 import path from 'path'
 import fs from 'fs'
 
 export function setupIPC() {
+  // File Download/Save As
+  ipcMain.handle('download-file', async (_, { url, filename }) => {
+    // 1. 获取物理路径
+    let filePath = ''
+    if (url.startsWith('chat-file://')) {
+      const u = new URL(url)
+      const sessionId = u.host
+      const name = decodeURIComponent(u.pathname.slice(1))
+      filePath = path.join(app.getPath('userData'), 'storage', 'chats', sessionId, name)
+    }
+
+    if (!filePath || !fs.existsSync(filePath)) {
+      return { success: false, error: 'File not found' }
+    }
+
+    // 2. 弹出保存对话框
+    const { filePath: savePath } = await dialog.showSaveDialog({
+      defaultPath: filename || path.basename(filePath),
+      filters: [
+        { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif'] }
+      ]
+    })
+
+    if (!savePath) return { success: false }
+
+    // 3. 复制文件到目标位置
+    try {
+      fs.copyFileSync(filePath, savePath)
+      return { success: true, path: savePath }
+    } catch (error) {
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
   // Image Storage
   ipcMain.handle('save-image', async (_, { base64, mimeType, sessionId }) => {
     const filename = `${uuidv4()}.${mimeType.split('/')[1] || 'png'}`
@@ -64,8 +99,17 @@ export function setupIPC() {
     return provider.generateTitle({ config, message })
   })
 
-  ipcMain.handle('delete-session', (_, sessionId: string) => {
+  ipcMain.handle('delete-session', async (_, sessionId: string) => {
+    // 1. 删除数据库记录
     const stmt = db.prepare('DELETE FROM sessions WHERE id = ?')
+    stmt.run(sessionId)
+
+    // 2. 删除关联的磁盘文件
+    await ChatStorage.deleteSessionStorage(sessionId)
+  })
+
+  ipcMain.handle('delete-last-message', (_, sessionId: string) => {
+    const stmt = db.prepare('DELETE FROM messages WHERE id = (SELECT id FROM messages WHERE session_id = ? ORDER BY created_at DESC LIMIT 1)')
     stmt.run(sessionId)
   })
 

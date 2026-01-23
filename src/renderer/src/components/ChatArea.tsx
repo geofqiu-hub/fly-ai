@@ -1,5 +1,5 @@
-import React from 'react'
-import { Image as ImageIcon, User, Bot, AlertCircle, RefreshCw, Paperclip } from 'lucide-react'
+import React, { useState } from 'react'
+import { Image as ImageIcon, User, Bot, AlertCircle, RefreshCw, Paperclip, X, ZoomIn, Download } from 'lucide-react'
 import clsx from 'clsx'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -11,12 +11,14 @@ interface Props {
   messages: Message[]
   streamingContent: string
   isStreaming: boolean
+  activeTool?: { name: string; args: any } | null
   error: string | null
   onRetry?: () => void
 }
 
-export function ChatArea({ messages, streamingContent, isStreaming, error, onRetry }: Props) {
+export function ChatArea({ messages, streamingContent, isStreaming, activeTool, error, onRetry }: Props) {
   const scrollRef = React.useRef<HTMLDivElement>(null)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
 
   React.useEffect(() => {
     if (scrollRef.current) {
@@ -123,18 +125,33 @@ export function ChatArea({ messages, streamingContent, isStreaming, error, onRet
     return <p {...props}>{children}</p>;
   };
 
-  const renderImage = ({ node, ...props }: any) => (
-    <div className="my-4">
-      <img
-        {...props}
-        className="max-w-full max-h-[512px] h-auto rounded-xl border border-black/5 shadow-md transition-transform hover:scale-[1.01] cursor-zoom-in bg-white"
-        loading="lazy"
-        onError={(e) => {
-          e.currentTarget.style.display = 'none';
-        }}
-      />
-    </div>
-  );
+  const renderImage = ({ node, ...props }: any) => {
+    console.log('[Renderer] Rendering image:', props.src);
+    
+    return (
+      <span className="block my-4 group relative w-fit">
+        <img
+          {...props}
+          onClick={() => setPreviewUrl(props.src)}
+          className="w-[15vw] min-w-[150px] h-auto rounded-2xl border border-black/10 shadow-sm transition-all hover:shadow-md hover:scale-[1.01] cursor-zoom-in"
+          loading="lazy"
+          onError={(e) => {
+            console.error('[Renderer] Image load failed:', props.src);
+          }}
+        />
+        <button 
+          onClick={(e) => {
+            e.stopPropagation();
+            window.api.downloadFile({ url: props.src });
+          }}
+          className="absolute top-2 right-2 p-1.5 bg-black/50 hover:bg-black/70 backdrop-blur-md rounded-lg text-white opacity-0 group-hover:opacity-100 transition-all shadow-lg"
+          title="Save As..."
+        >
+          <Download size={14} />
+        </button>
+      </span>
+    );
+  };
 
   return (
     <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 md:p-8 space-y-6">
@@ -162,6 +179,11 @@ export function ChatArea({ messages, streamingContent, isStreaming, error, onRet
                       <div className="space-y-4">
                         <ReactMarkdown
                           remarkPlugins={[remarkGfm]}
+                          urlTransform={(uri) => {
+                            // 允许 chat-file 协议，否则会被过滤成空字符串
+                            if (uri.startsWith('chat-file://')) return uri;
+                            return uri;
+                          }}
                           components={{
                             p: renderParagraph,
                             img: renderImage,
@@ -218,6 +240,10 @@ export function ChatArea({ messages, streamingContent, isStreaming, error, onRet
                   {streamingContent ? (
                     <ReactMarkdown
                       remarkPlugins={[remarkGfm]}
+                      urlTransform={(uri) => {
+                        if (uri.startsWith('chat-file://')) return uri;
+                        return uri;
+                      }}
                       components={{
                         p: renderParagraph,
                         img: renderImage,
@@ -237,6 +263,30 @@ export function ChatArea({ messages, streamingContent, isStreaming, error, onRet
                         <span className="text-sm font-medium">Thinking...</span>
                       </div>
                     )
+                  )}
+
+                  {activeTool && (
+                    <div className="my-4 p-4 bg-[#f9f9f8] rounded-xl border border-black/5 flex items-center gap-3 shadow-sm animate-pulse">
+                      <div className="w-9 h-9 rounded-full bg-claude-accent/10 flex items-center justify-center text-claude-accent">
+                        {activeTool.name === 'generate_image' ? <ImageIcon size={18} /> : <Bot size={18} />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">
+                          {activeTool.name === 'generate_image' ? 'Generating Image' : 'Executing Tool'}
+                        </div>
+                        <div className="text-sm font-semibold text-gray-700 truncate">
+                          {activeTool.name === 'generate_image' ? `Creating: ${activeTool.args.prompt}` : activeTool.name}
+                        </div>
+                        <div className="flex items-center gap-2 mt-1">
+                          <div className="flex gap-1">
+                            <span className="w-1 h-1 bg-claude-accent/40 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+                            <span className="w-1 h-1 bg-claude-accent/40 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+                            <span className="w-1 h-1 bg-claude-accent/40 rounded-full animate-bounce"></span>
+                          </div>
+                          <span className="text-[10px] text-claude-accent/60 font-medium">Please wait...</span>
+                        </div>
+                      </div>
+                    </div>
                   )}
                 </div>
               </div>
@@ -270,6 +320,30 @@ export function ChatArea({ messages, streamingContent, isStreaming, error, onRet
           )}
 
           <div className="h-4" />
+        </div>
+      )}
+
+      {/* Image Preview Modal */}
+      {previewUrl && (
+        <div 
+          className="fixed inset-0 z-[100] flex items-center justify-center backdrop-blur-md animate-in fade-in duration-200"
+          onClick={() => setPreviewUrl(null)}
+        >
+          <div className="absolute top-6 right-6 flex items-center gap-3">
+            <button 
+              className="p-3 bg-black/10 hover:bg-black/20 rounded-full text-gray-800 transition-colors"
+              onClick={() => setPreviewUrl(null)}
+              title="Close"
+            >
+              <X size={20} />
+            </button>
+          </div>
+          <img 
+            src={previewUrl} 
+            alt="Preview" 
+            className="w-auto h-auto max-w-[800px] max-h-[80vh] object-contain rounded-3xl shadow-[0_32px_64px_-12px_rgba(0,0,0,0.2)] animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          />
         </div>
       )}
     </div>

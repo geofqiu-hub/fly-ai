@@ -1,5 +1,5 @@
 export interface StreamEvent {
-  type: 'start' | 'text-delta' | 'tool-call' | 'tool-result' | 'finish' | 'error'
+  type: 'start' | 'text-delta' | 'file-delta' | 'tool-call' | 'tool-result' | 'finish' | 'error'
   data?: any
 }
 
@@ -37,6 +37,7 @@ export interface MessagePart {
 }
 
 export interface MultimodalParams {
+  sessionId?: string
   messages: ChatMessage[]
   config: ProviderConfig
   callbacks: {

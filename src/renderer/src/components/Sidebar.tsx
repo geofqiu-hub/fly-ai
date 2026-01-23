@@ -1,5 +1,5 @@
-import React from 'react'
-import { Settings, Plus, MessageSquare, Trash2, Menu } from 'lucide-react'
+import React, { useState, useEffect } from 'react'
+import { Settings, Plus, MessageSquare, Trash2, Menu, Edit2, Archive, Copy } from 'lucide-react'
 import clsx from 'clsx'
 import type { Session } from '../hooks/useSessions'
 
@@ -7,6 +7,7 @@ interface Props {
   onOpenSettings: () => void
   onSelectSession: (id: string) => void
   onDeleteSession: (id: string) => void
+  onRenameSession: (id: string, title: string) => void
   currentSessionId: string | null
   onNewSession: () => void
   sessions: Session[]
@@ -14,7 +15,17 @@ interface Props {
   onToggleCollapse?: () => void
 }
 
-export function Sidebar({ onOpenSettings, onSelectSession, onDeleteSession, currentSessionId, onNewSession, sessions, isCollapsed = false, onToggleCollapse }: Props) {
+export function Sidebar({ onOpenSettings, onSelectSession, onDeleteSession, onRenameSession, currentSessionId, onNewSession, sessions, isCollapsed = false, onToggleCollapse }: Props) {
+  const [contextMenu, setContextMenu] = useState<{ x: number, y: number, sessionId: string } | null>(null);
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+
+  useEffect(() => {
+    const handleClick = () => setContextMenu(null);
+    window.addEventListener('click', handleClick);
+    return () => window.removeEventListener('click', handleClick);
+  }, []);
+
   return (
     <div className={clsx(
       "bg-claude-bg flex flex-col h-full transition-all duration-300 ease-in-out",
@@ -64,6 +75,10 @@ export function Sidebar({ onOpenSettings, onSelectSession, onDeleteSession, curr
                 <div
                     key={session.id}
                     onClick={() => onSelectSession(session.id)}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      setContextMenu({ x: e.clientX, y: e.clientY, sessionId: session.id });
+                    }}
                     className={clsx(
                       "group w-full text-left px-3 py-2 rounded-md text-sm mb-1 truncate flex items-center justify-between cursor-pointer transition-colors",
                       currentSessionId === session.id
@@ -71,10 +86,32 @@ export function Sidebar({ onOpenSettings, onSelectSession, onDeleteSession, curr
                         : "text-gray-600 hover:bg-black/5"
                     )}
                 >
-                   <div className="flex items-center gap-2 truncate flex-1">
-                      <MessageSquare size={14} className="opacity-50 shrink-0" />
-                      <span className="truncate">{session.title || 'New Chat'}</span>
-                   </div>
+                    <div className="flex items-center gap-2 truncate flex-1">
+                       <MessageSquare size={14} className="opacity-50 shrink-0" />
+                       {editingSessionId === session.id ? (
+                         <input
+                           autoFocus
+                           className="bg-black/5 border-none outline-none ring-1 ring-claude-accent/50 rounded px-1 w-full text-sm"
+                           value={editTitle}
+                           onChange={(e) => setEditTitle(e.target.value)}
+                           onKeyDown={(e) => {
+                             if (e.key === 'Enter') {
+                               onRenameSession(session.id, editTitle);
+                               setEditingSessionId(null);
+                             } else if (e.key === 'Escape') {
+                               setEditingSessionId(null);
+                             }
+                           }}
+                           onBlur={() => {
+                             onRenameSession(session.id, editTitle);
+                             setEditingSessionId(null);
+                           }}
+                           onClick={(e) => e.stopPropagation()}
+                         />
+                       ) : (
+                         <span className="truncate">{session.title || 'New Chat'}</span>
+                       )}
+                    </div>
                    <button
                     onClick={(e) => {
                       e.stopPropagation()
@@ -111,6 +148,64 @@ export function Sidebar({ onOpenSettings, onSelectSession, onDeleteSession, curr
             title="Settings"
           >
             <Settings size={20} />
+          </button>
+        </div>
+      )}
+
+      {/* Context Menu */}
+      {contextMenu && (
+        <div 
+          className="fixed z-[100] bg-white border border-black/5 shadow-2xl rounded-xl py-1.5 min-w-[160px] animate-in fade-in zoom-in-95 duration-100"
+          style={{ top: contextMenu.y, left: contextMenu.x }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button 
+            onClick={() => {
+              const session = sessions.find(s => s.id === contextMenu.sessionId);
+              if (session) {
+                setEditTitle(session.title || 'New Chat');
+                setEditingSessionId(session.id);
+              }
+              setContextMenu(null);
+            }}
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-claude-accent hover:text-white transition-colors"
+          >
+            <Edit2 size={14} />
+            <span>重命名</span>
+          </button>
+          
+          <button 
+            disabled
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-300 cursor-not-allowed"
+          >
+            <Archive size={14} />
+            <span>归档 (开发中)</span>
+          </button>
+
+          <div className="h-px bg-black/5 my-1" />
+
+          <button 
+            onClick={() => {
+              navigator.clipboard.writeText(contextMenu.sessionId);
+              setContextMenu(null);
+            }}
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-black/5 transition-colors"
+          >
+            <Copy size={14} />
+            <span>复制 ID</span>
+          </button>
+
+          <button 
+            onClick={() => {
+              if (confirm('确定要删除这个对话吗？')) {
+                onDeleteSession(contextMenu.sessionId);
+              }
+              setContextMenu(null);
+            }}
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-500 hover:bg-red-50 transition-colors"
+          >
+            <Trash2 size={14} />
+            <span>删除</span>
           </button>
         </div>
       )}

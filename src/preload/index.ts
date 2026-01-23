@@ -22,6 +22,7 @@ contextBridge.exposeInMainWorld('api', {
   updateSessionTitle: (data: any) => ipcRenderer.invoke('update-session-title', data),
   generateTitle: (data: { providerId: string; config: any; message: string }) => ipcRenderer.invoke('generate-title', data),
   deleteSession: (sessionId: string) => ipcRenderer.invoke('delete-session', sessionId),
+  deleteLastMessage: (sessionId: string) => ipcRenderer.invoke('delete-last-message', sessionId),
   saveImage: (data: { base64: string; mimeType: string; sessionId: string }) => ipcRenderer.invoke('save-image', data),
   getImage: (sessionId: string, filename: string) => ipcRenderer.invoke('get-image', sessionId, filename),
   // Agent APIs
@@ -73,6 +74,14 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.on('stream-event', (_event, data) => callback(data))
   },
   onStreamError: (callback: (data: { sessionId: string; error: string }) => void) => {
-    ipcRenderer.on('stream-error', (_event, data) => callback(data))
+    const subscription = (_event: any, data: any) => callback(data)
+    ipcRenderer.on('stream-error', subscription)
+    return () => ipcRenderer.removeListener('stream-error', subscription)
   },
+  downloadFile: (data: { url: string; filename?: string }) => ipcRenderer.invoke('download-file', data),
+  removeStreamListeners: () => {
+    ipcRenderer.removeAllListeners('stream-chunk')
+    ipcRenderer.removeAllListeners('stream-event')
+    ipcRenderer.removeAllListeners('stream-error')
+  }
 })
