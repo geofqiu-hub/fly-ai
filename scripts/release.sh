@@ -20,12 +20,14 @@ if git rev-parse "v$VERSION" >/dev/null 2>&1; then
 fi
 git tag "v$VERSION"
 
-echo "------------------------------------------------"
-echo "📡 准备推送到 GitHub，请输入凭据："
+# 3. 自动获取当前分支名
+CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+
+echo "📡 准备推送到 GitHub (分支: $CURRENT_BRANCH)，请输入凭据："
 echo "------------------------------------------------"
 
-# 3. 强制推送标签 (防止远程已存在)
-git push origin main
+# 推送当前分支和标签
+git push origin "$CURRENT_BRANCH"
 git push origin "v$VERSION" --force
 
 echo ""
