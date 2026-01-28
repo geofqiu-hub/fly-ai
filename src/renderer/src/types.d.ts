@@ -39,7 +39,7 @@ export interface IElectronAPI {
   }) => Promise<string>
   deleteAgent: (agentId: string) => Promise<boolean>
   getPresetAgents: () => Promise<any[]>
-  createAgentFromPreset: (presetId: string) => Promise<string | null>
+  createAgentFromPreset: (presetId: string, forceNew?: boolean) => Promise<string | null>
   updateSessionAgent: (data: { sessionId: string; agentId?: string }) => Promise<void>
   // API Config APIs
   getApiConfig: (provider: string) => Promise<any>

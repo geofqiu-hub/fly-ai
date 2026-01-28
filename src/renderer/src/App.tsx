@@ -10,7 +10,7 @@ import { useChat } from './hooks/useChat'
 function App() {
   // ========== UI 状态 ==========
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true) // 默认折叠
   const [currentModel, setCurrentModel] = useState<any>(null)
 
   // ========== 会话管理 ==========
@@ -41,12 +41,7 @@ function App() {
     return () => window.removeEventListener('resize', handleResize)
   }, [])
 
-  // 切换会话时处理模型/智能体状态
-  useEffect(() => {
-    if (sessions.currentSessionAgent) {
-      setCurrentModel(null)
-    }
-  }, [sessions.currentSessionAgent])
+  // 选择智能体不影响模型选择，保持用户当前选择的模型
 
   // 当会话切换时，同步模型选择
   useEffect(() => {
@@ -128,6 +123,10 @@ function App() {
     }
   }
 
+  const handleSelectAgent = async (agentId: string | null) => {
+    await sessions.updateSessionAgent(agentId)
+  }
+
   return (
     <div className="flex h-screen w-full bg-claude-bg text-gray-800 font-sans selection:bg-claude-accent selection:text-white">
       <Sidebar
@@ -164,6 +163,7 @@ function App() {
           currentModel={currentModel}
           onSelectModel={handleSelectModel}
           canChangeModel={chat.messages.length === 0}
+          onSelectAgent={handleSelectAgent}
         />
       </div>
       <SettingsModal

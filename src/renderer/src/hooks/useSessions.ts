@@ -37,9 +37,13 @@ export const useSessions = () => {
       currentSessionTitle: 'New Chat',
       refreshSidebar: prev.refreshSidebar + 1
     }))
+    // 如果用户在“未创建会话”前就选择了智能体，这里在会话创建后立刻落库
+    if (state.currentSessionAgent?.id) {
+      await window.api.updateSessionAgent({ sessionId, agentId: state.currentSessionAgent.id })
+    }
     await loadSessions()
     return sessionId
-  }, [loadSessions])
+  }, [loadSessions, state.currentSessionAgent])
 
   const selectSession = useCallback(async (id: string) => {
     const sessions = await window.api.getSessions()
@@ -107,14 +111,36 @@ export const useSessions = () => {
   }, [])
 
   const updateSessionAgent = useCallback(async (agentId: string | null) => {
-    if (state.currentSessionId) {
-      await window.api.updateSessionAgent({ sessionId: state.currentSessionId, agentId: agentId || undefined })
+    // 每次用户选择智能体时，记录到全局设置，供下次 # 唤出时默认高亮
+    if (agentId) {
+      try {
+        await window.api.saveSetting('last_used_agent', agentId)
+      } catch (error) {
+        console.warn('Failed to save last_used_agent setting:', error)
+      }
+    }
+
+    // 允许在 session 尚未创建时选择智能体：先更新内存态，等创建 session 后再落库
+    if (!state.currentSessionId) {
       if (agentId) {
         const agent = await window.api.getAgent(agentId)
         setState(prev => ({ ...prev, currentSessionAgent: agent }))
+      } else {
+        setState(prev => ({ ...prev, currentSessionAgent: null }))
       }
+      return 'session-id'
     }
-    return state.currentSessionId || 'session-id'
+
+    await window.api.updateSessionAgent({ sessionId: state.currentSessionId, agentId: agentId || undefined })
+    if (agentId) {
+      const agent = await window.api.getAgent(agentId)
+      setState(prev => ({ ...prev, currentSessionAgent: agent }))
+    } else {
+      // 清空当前会话智能体（用于恢复默认系统提示词）
+      setState(prev => ({ ...prev, currentSessionAgent: null }))
+    }
+
+    return state.currentSessionId
   }, [state.currentSessionId])
 
   const clearSession = useCallback(() => {

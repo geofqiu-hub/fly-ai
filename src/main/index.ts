@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, protocol, net } from 'electron'
+import { app, shell, BrowserWindow, protocol, net, nativeImage } from 'electron'
 import path from 'path'
 import fs from 'fs'
 import { setupIPC } from './ipc'
@@ -11,7 +11,7 @@ import { ChatStorage } from './utils/chat-storage'
 // 1. 强制在最顶层设置路径
 const userDataPath = path.join(app.getPath('appData'), 'flyai');
 app.setPath('userData', userDataPath);
-app.setName('flyai');
+app.setName('FlyAI');
 
 // Fix for blank screen on macOS
 app.disableHardwareAcceleration()
@@ -131,10 +131,36 @@ app.whenReady().then(() => {
   }
 
   // Set Dock icon for macOS in development
+  // 注意：生产环境的图标由 electron-builder 自动处理，不需要手动设置
+  // 开发环境使用不透明背景的 PNG（256x256），macOS Dock 会自动应用圆角和阴影效果
   if (process.platform === 'darwin' && process.env.NODE_ENV === 'development' && app.dock) {
-    const iconPath = path.join(__dirname, '../../build/icon.png')
-    if (fs.existsSync(iconPath)) {
-      app.dock.setIcon(iconPath)
+    try {
+      // 优先使用预处理好的 Dock 图标（带透明背景，256x256）
+      const dockIconPath = path.resolve(__dirname, '../../build/icon_dock.png')
+      // 回退到去除水印的版本，最后才使用原始图标
+      const noWatermarkPath = path.resolve(__dirname, '../../build/icon_no_watermark.png')
+      const fallbackIconPath = fs.existsSync(noWatermarkPath) 
+        ? noWatermarkPath 
+        : path.resolve(__dirname, '../../build/icon.png')
+      
+      if (fs.existsSync(dockIconPath)) {
+        const dockImage = nativeImage.createFromPath(dockIconPath)
+        if (!dockImage.isEmpty()) {
+          app.dock.setIcon(dockImage)
+          console.log('[Main] Dock icon set to preprocessed PNG (256x256, opaque):', dockIconPath)
+        }
+      } else if (fs.existsSync(fallbackIconPath)) {
+        // 回退：使用原始图标并调整大小
+        const pngImage = nativeImage.createFromPath(fallbackIconPath)
+        if (!pngImage.isEmpty()) {
+          const resized = pngImage.resize({ width: 256, height: 256, quality: 'best' })
+          app.dock.setIcon(resized)
+          console.log('[Main] Dock icon set to resized PNG (256x256):', fallbackIconPath)
+        }
+      }
+    } catch (error) {
+      console.error('[Main] Failed to set Dock icon:', error)
+      // 忽略错误，不影响应用启动
     }
   }
 

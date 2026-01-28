@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Image as ImageIcon, User, Bot, AlertCircle, RefreshCw, Paperclip, X, ZoomIn, Download, Brain, ChevronDown } from 'lucide-react'
+import { Image as ImageIcon, User, Bot, AlertCircle, RefreshCw, Paperclip, X, ZoomIn, Download, Brain, ChevronDown, Copy, Check } from 'lucide-react'
 import clsx from 'clsx'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -21,6 +21,7 @@ export function ChatArea({ messages, streamingContent, streamingThought, isStrea
   const scrollRef = React.useRef<HTMLDivElement>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [expandedThoughts, setExpandedThoughts] = useState<Record<string, boolean>>({})
+  const [copiedCodeId, setCopiedCodeId] = useState<string | null>(null)
 
   const toggleThought = (id: string) => {
     setExpandedThoughts(prev => ({ ...prev, [id]: !prev[id] }))
@@ -72,15 +73,39 @@ export function ChatArea({ messages, streamingContent, streamingThought, isStrea
     // 3. 处理块级代码 (Block Code) - 浅色背景
     const lineCount = content.split('\n').length;
     const isSingleLine = lineCount <= 1;
+    const codeId = `code-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+    const isCopied = copiedCodeId === codeId;
+
+    const handleCopyCode = async (e: React.MouseEvent) => {
+      e.stopPropagation();
+      try {
+        await navigator.clipboard.writeText(content);
+        setCopiedCodeId(codeId);
+        setTimeout(() => setCopiedCodeId(null), 2000);
+      } catch (err) {
+        console.error('Failed to copy code:', err);
+      }
+    };
 
     return (
       <span className={clsx(
         "group relative rounded-lg overflow-hidden border border-black/[0.06] bg-[#f7f7f5] transition-all",
         isSingleLine ? "inline-block align-middle mx-1 px-1.5 py-0.5 min-w-[20px] text-claude-accent font-bold" : "block my-4 first:mt-0 last:mb-0 w-full"
       )}>
-        {!isSingleLine && language && (
-          <div className="absolute right-3 top-2 px-1.5 py-0.5 bg-black/5 text-black/30 text-[9px] font-bold rounded uppercase tracking-wider z-10 opacity-0 group-hover:opacity-100 transition-opacity">
-            {language}
+        {!isSingleLine && (
+          <div className="absolute right-2 top-2 flex items-center gap-1.5 z-10">
+            {language && (
+              <div className="px-1.5 py-0.5 bg-black/5 text-black/30 text-[9px] font-bold rounded uppercase tracking-wider opacity-0 group-hover:opacity-100 transition-opacity">
+                {language}
+              </div>
+            )}
+            <button
+              onClick={handleCopyCode}
+              className="p-1.5 rounded-md bg-white/80 backdrop-blur-sm border border-black/10 text-gray-600 hover:text-gray-900 hover:bg-white shadow-sm opacity-0 group-hover:opacity-100 transition-all hover:scale-105 active:scale-95"
+              title={isCopied ? '已复制' : '复制代码'}
+            >
+              {isCopied ? <Check size={14} className="text-green-600" /> : <Copy size={14} />}
+            </button>
           </div>
         )}
         <SyntaxHighlighter
@@ -168,7 +193,7 @@ export function ChatArea({ messages, streamingContent, streamingThought, isStrea
           </div>
           <div className="space-y-2">
             <h1 className="text-3xl font-serif text-gray-800 tracking-tight">How can I help you?</h1>
-            <p className="text-gray-400 text-sm">Create and reason with FlyAi.</p>
+            <p className="text-gray-400 text-sm">Create and reason with FlyAI.</p>
           </div>
         </div>
       ) : (

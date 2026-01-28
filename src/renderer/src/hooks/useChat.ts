@@ -74,6 +74,7 @@ export const useChat = ({
       return
     }
 
+    // 使用当前选择的模型，智能体不绑定模型
     const modelId = currentModel?.modelId || 'gemini-3-flash-preview'
     const providerId = currentModel?.provider || 'gemini'
 
@@ -152,6 +153,7 @@ export const useChat = ({
       if (sessionId !== currentSessionId) return
 
       if (event.type === 'finish') {
+        // 使用当前选择的模型，智能体不绑定模型
         const modelId = currentModel?.modelId || 'gemini-3-flash-preview'
         const sid = currentSessionId || 'default'
         
@@ -233,6 +235,7 @@ export const useChat = ({
         return
       }
 
+      // 使用当前选择的模型，智能体不绑定模型
       const modelId = currentModel?.modelId || 'gemini-3-flash-preview'
       
       // 获取当前所有消息作为上下文

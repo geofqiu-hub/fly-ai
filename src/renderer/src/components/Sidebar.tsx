@@ -37,7 +37,7 @@ export function Sidebar({ onOpenSettings, onSelectSession, onDeleteSession, onRe
         isCollapsed ? "pt-20 pb-4 justify-center" : "pt-14 px-4 pb-4 justify-between"
       )}>
           {!isCollapsed && (
-            <span className="font-serif font-semibold text-xl tracking-tight text-gray-800 select-none no-drag">FlyAi</span>
+            <span className="font-serif font-semibold text-xl tracking-tight text-gray-800 select-none no-drag">FlyAI</span>
           )}
           <div className={clsx(
             "flex items-center gap-1 no-drag",
@@ -154,12 +154,12 @@ export function Sidebar({ onOpenSettings, onSelectSession, onDeleteSession, onRe
 
       {/* Context Menu */}
       {contextMenu && (
-        <div 
+        <div
           className="fixed z-[100] bg-white border border-black/5 shadow-2xl rounded-xl py-1.5 min-w-[160px] animate-in fade-in zoom-in-95 duration-100"
           style={{ top: contextMenu.y, left: contextMenu.x }}
           onClick={(e) => e.stopPropagation()}
         >
-          <button 
+          <button
             onClick={() => {
               const session = sessions.find(s => s.id === contextMenu.sessionId);
               if (session) {
@@ -173,8 +173,8 @@ export function Sidebar({ onOpenSettings, onSelectSession, onDeleteSession, onRe
             <Edit2 size={14} />
             <span>重命名</span>
           </button>
-          
-          <button 
+
+          <button
             disabled
             className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-300 cursor-not-allowed"
           >
@@ -184,7 +184,7 @@ export function Sidebar({ onOpenSettings, onSelectSession, onDeleteSession, onRe
 
           <div className="h-px bg-black/5 my-1" />
 
-          <button 
+          <button
             onClick={() => {
               navigator.clipboard.writeText(contextMenu.sessionId);
               setContextMenu(null);
@@ -195,7 +195,7 @@ export function Sidebar({ onOpenSettings, onSelectSession, onDeleteSession, onRe
             <span>复制 ID</span>
           </button>
 
-          <button 
+          <button
             onClick={() => {
               if (confirm('确定要删除这个对话吗？')) {
                 onDeleteSession(contextMenu.sessionId);

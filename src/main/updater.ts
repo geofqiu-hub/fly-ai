@@ -22,6 +22,7 @@ export function setupUpdater() {
 
   autoUpdater.on('update-downloaded', (info) => {
     log.info('Update downloaded')
+    // macOS 会自动使用应用图标，无需手动设置
     dialog.showMessageBox({
       type: 'info',
       title: '更新可用',

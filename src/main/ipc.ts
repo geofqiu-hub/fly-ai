@@ -5,6 +5,7 @@ import { providerManager } from './providers/provider-manager'
 import { ChatStorage } from './utils/chat-storage'
 import path from 'path'
 import fs from 'fs'
+import { PRESET_AGENTS } from './agents-presets'
 
 export function setupIPC() {
   // File Download/Save As
@@ -22,7 +23,7 @@ export function setupIPC() {
       return { success: false, error: 'File not found' }
     }
 
-    // 2. 弹出保存对话框
+    // 2. 弹出保存对话框（macOS 会自动使用应用图标）
     const { filePath: savePath } = await dialog.showSaveDialog({
       defaultPath: filename || path.basename(filePath),
       filters: [
@@ -157,18 +158,46 @@ export function setupIPC() {
   })
 
   ipcMain.handle('delete-agent', (_, agentId: string) => {
-    const stmt = db.prepare('DELETE FROM agents WHERE id = ? AND is_preset = 0')
+    // 允许删除所有智能体（包括预设的），用户删除后可以重新从预设创建
+    const stmt = db.prepare('DELETE FROM agents WHERE id = ?')
     const result = stmt.run(agentId)
     return result.changes > 0
   })
 
   // Preset Agents
   ipcMain.handle('get-preset-agents', () => {
-    return []
+    // 直接从预置配置文件中返回静态配置，用于前端展示
+    return PRESET_AGENTS
   })
 
-  ipcMain.handle('create-agent-from-preset', () => {
-    return null
+  ipcMain.handle('create-agent-from-preset', (_, presetId: string, forceNew: boolean = false) => {
+    const preset = PRESET_AGENTS.find(a => a.id === presetId)
+    if (!preset) {
+      return null
+    }
+
+    const now = Date.now()
+
+    // 如果 forceNew 为 true，总是创建新的智能体（使用新的 id）
+    if (forceNew) {
+      const newId = `${preset.id}-${now}`
+      const stmt = db.prepare('INSERT INTO agents (id, name, description, system_prompt, avatar_color, temperature, is_preset, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      stmt.run(newId, preset.name, preset.description, preset.system_prompt, preset.avatar_color, preset.temperature, 0, now, now)
+      return newId
+    }
+
+    // 如果已存在同 id 的智能体，则更新它并返回 id，避免重复创建
+    const existing = db.prepare('SELECT id FROM agents WHERE id = ?').get(preset.id) as { id: string } | undefined
+    if (existing) {
+      const stmt = db.prepare('UPDATE agents SET name = ?, description = ?, system_prompt = ?, avatar_color = ?, temperature = ?, is_preset = 1, updated_at = ? WHERE id = ?')
+      stmt.run(preset.name, preset.description, preset.system_prompt, preset.avatar_color, preset.temperature, now, preset.id)
+      return preset.id
+    }
+
+    const stmt = db.prepare('INSERT INTO agents (id, name, description, system_prompt, avatar_color, temperature, is_preset, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+    stmt.run(preset.id, preset.name, preset.description, preset.system_prompt, preset.avatar_color, preset.temperature, 1, now, now)
+
+    return preset.id
   })
 
   // Session-Agent association

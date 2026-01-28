@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { Send, Paperclip, Bot, X, Image as ImageIcon } from 'lucide-react'
 import { ModelSelector } from './ModelSelector'
 import type { Model } from '../types/chat'
@@ -27,17 +27,130 @@ interface Props {
   currentModel?: Model | null
   onSelectModel?: (model: Model | null) => void
   canChangeModel?: boolean
+  onSelectAgent?: (agentId: string | null) => void | Promise<void>
 }
 
-export function InputArea({ onSend, disabled, currentAgent, currentModel, onSelectModel, canChangeModel = true }: Props) {
+export function InputArea({ onSend, disabled, currentAgent, currentModel, onSelectModel, canChangeModel = true, onSelectAgent }: Props) {
   const [text, setText] = useState('')
   const [attachments, setAttachments] = useState<Attachment[]>([])
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [showAgentList, setShowAgentList] = useState(false)
+  const [agents, setAgents] = useState<Agent[]>([])
+  const [highlightedIndex, setHighlightedIndex] = useState(0)
+  const [agentTriggerIndex, setAgentTriggerIndex] = useState<number | null>(null)
+
+  const loadAgents = async () => {
+    try {
+      let loadedAgents = await window.api.getAgents()
+      if (!loadedAgents || loadedAgents.length === 0) {
+        const presets = await window.api.getPresetAgents()
+        if (presets && presets.length > 0) {
+          // 将预置智能体写入数据库，供后续使用
+          for (const preset of presets) {
+            await window.api.createAgentFromPreset(preset.id)
+          }
+          loadedAgents = await window.api.getAgents()
+        }
+      }
+      if (loadedAgents && loadedAgents.length > 0) {
+        let orderedAgents = loadedAgents
+
+        // 默认将“上次选择的智能体”移动到列表第一位，并高亮它
+        try {
+          const lastAgentId = await window.api.getSetting('last_used_agent')
+          if (lastAgentId) {
+            const idx = loadedAgents.findIndex(agent => agent.id === lastAgentId)
+            if (idx >= 0) {
+              const lastAgent = loadedAgents[idx]
+              orderedAgents = [lastAgent, ...loadedAgents.filter((_, i) => i !== idx)]
+            }
+          }
+        } catch (e) {
+          console.warn('Failed to get last_used_agent setting:', e)
+        }
+
+        setAgents(orderedAgents)
+        setHighlightedIndex(0) // 列表第一个就是“默认选中”的智能体
+        setShowAgentList(true)
+      }
+    } catch (error) {
+      console.error('Failed to load agents:', error)
+    }
+  }
+
+  const handleSelectAgent = async (agent: Agent) => {
+    setShowAgentList(false)
+
+    // 将输入中的 "#" 触发符以及紧随其后的连续非空白字符删除
+    if (agentTriggerIndex !== null) {
+      const currentValue = text
+      const chars = currentValue.split('')
+      if (agentTriggerIndex >= 0 && agentTriggerIndex < chars.length && chars[agentTriggerIndex] === '#') {
+        let end = agentTriggerIndex + 1
+        while (end < chars.length && !/\s/.test(chars[end])) {
+          end++
+        }
+        const newValue = currentValue.slice(0, agentTriggerIndex) + currentValue.slice(end)
+        setText(newValue)
+
+        // 恢复光标位置到原来的 "#" 所在处
+        requestAnimationFrame(() => {
+          if (textareaRef.current) {
+            textareaRef.current.selectionStart = textareaRef.current.selectionEnd = agentTriggerIndex
+            textareaRef.current.focus()
+          }
+        })
+      }
+    }
+
+    setAgentTriggerIndex(null)
+
+    if (onSelectAgent) {
+      await onSelectAgent(agent.id)
+    }
+  }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     // Check if the user is currently using an IME (Input Method Editor)
     if (e.nativeEvent.isComposing) return
+
+    if (e.key === '#' && !showAgentList) {
+      // 输入 # 时尝试唤出智能体列表（仅在词首或行首触发）
+      const el = textareaRef.current
+      const cursor = el?.selectionStart ?? text.length
+      const beforeChar = cursor > 0 ? text[cursor - 1] : ' '
+      if (/\s/.test(beforeChar)) {
+        setAgentTriggerIndex(cursor) // 此时 # 将出现在该位置
+        loadAgents()
+      }
+    }
+
+    if (showAgentList) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        setHighlightedIndex(prev => (prev + 1) % (agents.length || 1))
+        return
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        setHighlightedIndex(prev => (prev - 1 + (agents.length || 1)) % (agents.length || 1))
+        return
+      }
+      if (e.key === 'Enter') {
+        if (agents[highlightedIndex]) {
+          e.preventDefault()
+          handleSelectAgent(agents[highlightedIndex])
+          return
+        }
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        setShowAgentList(false)
+        setAgentTriggerIndex(null)
+        return
+      }
+    }
 
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
@@ -161,18 +274,68 @@ export function InputArea({ onSend, disabled, currentAgent, currentModel, onSele
             {currentAgent && (
               <div className="mb-3 px-1">
                 <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border shadow-sm" style={{ backgroundColor: `${currentAgent.avatar_color}10`, borderColor: `${currentAgent.avatar_color}30` }}>
+                  <div
+                    className="relative flex items-center gap-2 px-3 py-1.5 rounded-lg border shadow-sm pr-7"
+                    style={{ backgroundColor: `${currentAgent.avatar_color}10`, borderColor: `${currentAgent.avatar_color}30` }}
+                  >
                     <div className="w-6 h-6 rounded-full flex items-center justify-center text-white" style={{ backgroundColor: currentAgent.avatar_color }}>
                       <Bot size={12} />
                     </div>
                     <span className="text-sm font-medium" style={{ color: currentAgent.avatar_color }}>
                       {currentAgent.name}
                     </span>
+                    {onSelectAgent && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          await onSelectAgent(null)
+                        }}
+                        className="absolute -top-1 -right-1 p-1 rounded-full bg-white border border-black/10 text-gray-400 hover:text-gray-700 hover:bg-gray-50 shadow-sm transition-colors"
+                        title="移除当前智能体"
+                      >
+                        <X size={10} />
+                      </button>
+                    )}
                   </div>
                   <div className="text-xs text-gray-400 truncate flex-1">
                     {currentAgent.description}
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* Agent Selector Dropdown (triggered by #) */}
+            {showAgentList && agents.length > 0 && (
+              <div className="absolute bottom-20 left-3 w-80 max-h-72 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-lg z-20">
+                <div className="px-3 py-2 border-b border-gray-100 text-xs text-gray-500">
+                  选择一个智能体（↑↓ 切换，Enter 确认，Esc 关闭）
+                </div>
+                <ul className="py-1">
+                  {agents.map((agent, index) => (
+                    <li
+                      key={agent.id}
+                      onMouseDown={(e) => {
+                        // 使用 onMouseDown 避免 textarea 失焦导致状态丢失
+                        e.preventDefault()
+                        handleSelectAgent(agent)
+                      }}
+                      className={`px-3 py-2 text-sm cursor-pointer flex items-start gap-2 ${
+                        index === highlightedIndex ? 'bg-claude-accent/10 text-claude-accent' : 'hover:bg-gray-50'
+                      }`}
+                    >
+                      <div
+                        className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[10px] shrink-0"
+                        style={{ backgroundColor: agent.avatar_color }}
+                      >
+                        <Bot size={12} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium truncate">{agent.name}</div>
+                        <div className="text-xs text-gray-400 truncate">{agent.description}</div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
               </div>
             )}
 
@@ -182,6 +345,12 @@ export function InputArea({ onSend, disabled, currentAgent, currentModel, onSele
                 onChange={(e) => {
                   setText(e.target.value)
                   handleTextareaResize()
+
+                  // 如果用户删除了 "#" 触发符，则关闭智能体列表
+                  if (showAgentList && !e.target.value.includes('#')) {
+                    setShowAgentList(false)
+                    setAgentTriggerIndex(null)
+                  }
                 }}
                 onKeyDown={handleKeyDown}
                 onPaste={handlePaste}
@@ -226,7 +395,7 @@ export function InputArea({ onSend, disabled, currentAgent, currentModel, onSele
             </div>
         </div>
         <div className="text-center mt-2 text-xs text-gray-400">
-            FlyAi 可能会出错。请核实重要信息.
+            FlyAI 可能会出错。请核实重要信息.
         </div>
     </div>
   )

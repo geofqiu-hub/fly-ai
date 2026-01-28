@@ -41,7 +41,7 @@ contextBridge.exposeInMainWorld('api', {
   }) => ipcRenderer.invoke('save-agent', data),
   deleteAgent: (agentId: string) => ipcRenderer.invoke('delete-agent', agentId),
   getPresetAgents: () => ipcRenderer.invoke('get-preset-agents'),
-  createAgentFromPreset: (presetId: string) => ipcRenderer.invoke('create-agent-from-preset', presetId),
+  createAgentFromPreset: (presetId: string, forceNew?: boolean) => ipcRenderer.invoke('create-agent-from-preset', presetId, forceNew),
   updateSessionAgent: (data: { sessionId: string; agentId?: string }) => ipcRenderer.invoke('update-session-agent', data),
   // API Config APIs
   getApiConfig: (provider: string) => ipcRenderer.invoke('get-api-config', provider),

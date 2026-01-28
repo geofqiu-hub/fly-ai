@@ -27,7 +27,7 @@
   "type": "commonjs",
   "build": {
     "appId": "com.flyai.app",
-    "productName": "FlyAi",
+    "productName": "FlyAI",
     "directories": {
       "output": "dist/package"
     },
@@ -97,6 +97,7 @@
     "electron-builder": "^26.4.0",
     "electron-rebuild": "^3.2.9",
     "esbuild": "^0.27.2",
+    "png2icons": "^2.0.1",
     "postcss": "^8.5.6",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.9.3",
