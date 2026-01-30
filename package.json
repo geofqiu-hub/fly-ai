@@ -10,7 +10,7 @@
   "scripts": {
     "postinstall": "npx @electron/rebuild -f -w better-sqlite3",
     "clean": "rm -rf dist/main dist/preload dist/renderer dist/package",
-    "build:main": "esbuild src/main/index.ts --bundle --platform=node --outfile=dist/main/index.js --external:electron --external:better-sqlite3 --external:sharp",
+    "build:main": "esbuild src/main/index.ts --bundle --platform=node --outfile=dist/main/index.js --external:electron --external:better-sqlite3 --external:sharp && node -e \"const fs=require('fs'); const p=require('path'); const src='src/main/config'; const dest='dist/main/config'; if(fs.existsSync(src)){ fs.mkdirSync(dest,{recursive:true}); fs.readdirSync(src).forEach(f=>fs.copyFileSync(p.join(src,f),p.join(dest,f))); }\"",
     "build:preload": "esbuild src/preload/index.ts --bundle --platform=node --outfile=dist/preload/index.js --external:electron",
     "build:renderer": "tsc && vite build",
     "build": "npm run clean && npm run build:main && npm run build:preload && npm run build:renderer",

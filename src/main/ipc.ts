@@ -287,4 +287,69 @@ export function setupIPC() {
     const stmt = db.prepare('UPDATE models SET model_id = ? WHERE id = ?')
     stmt.run(modelId, id)
   })
+
+  ipcMain.handle('update-model-capabilities', (_, { id, capabilities }: { id: string; capabilities: any }) => {
+    const capsJson = JSON.stringify(capabilities || {})
+    const stmt = db.prepare('UPDATE models SET capabilities = ? WHERE id = ?')
+    stmt.run(capsJson, id)
+  })
+
+  // 模型配置：运行时从磁盘读取 JSON，改文件后无需重启 dev 或清缓存即可生效
+  ipcMain.handle('get-model-config', (_, provider: string) => {
+    try {
+      const isDev = process.env.NODE_ENV === 'development'
+      const configPath = isDev
+        ? path.join(process.cwd(), 'src/main/config', `${provider}-models.json`)
+        : path.join(__dirname, 'config', `${provider}-models.json`)
+      if (!fs.existsSync(configPath)) return []
+      const raw = fs.readFileSync(configPath, 'utf-8')
+      const data = JSON.parse(raw)
+      return Array.isArray(data) ? data : []
+    } catch (e) {
+      console.error('[IPC] get-model-config error:', e)
+      return []
+    }
+  })
+
+  // Check current Gemini API Key / Base URL status without persisting
+  ipcMain.handle('check-gemini-config', async (_, { apiKey, baseUrl }: { apiKey: string; baseUrl?: string }) => {
+    if (!apiKey) {
+      return { success: false, error: 'NO_API_KEY' }
+    }
+
+    try {
+      const cleanBase = (baseUrl || 'https://generativelanguage.googleapis.com').replace(/\/+$/, '')
+      const url = `${cleanBase}/v1/models?key=${encodeURIComponent(apiKey)}`
+
+      const res = await fetch(url)
+      if (!res.ok) {
+        const text = await res.text().catch(() => '')
+        return {
+          success: false,
+          error: `HTTP_${res.status}`,
+          message: text
+        }
+      }
+
+      const data = (await res.json()) as any
+      const models = Array.isArray(data.models) ? data.models : []
+
+      const normalized = models.map((m: any) => ({
+        name: m.name || '',
+        displayName: m.displayName || '',
+        description: m.description || '',
+        supportedGenerationMethods: m.supportedGenerationMethods || [],
+        inputTokenLimit: m.inputTokenLimit,
+        outputTokenLimit: m.outputTokenLimit
+      }))
+
+      return { success: true, models: normalized }
+    } catch (error) {
+      return {
+        success: false,
+        error: 'UNEXPECTED_ERROR',
+        message: (error as Error).message
+      }
+    }
+  })
 }

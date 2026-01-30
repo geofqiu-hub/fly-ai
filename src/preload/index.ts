@@ -52,6 +52,9 @@ contextBridge.exposeInMainWorld('api', {
   getModel: (modelId: string) => ipcRenderer.invoke('get-model', modelId),
   updateModelStatus: (data: { modelId: string; isEnabled: boolean }) => ipcRenderer.invoke('update-model-status', data),
   updateModelId: (data: { id: string; modelId: string }) => ipcRenderer.invoke('update-model-id', data),
+  updateModelCapabilities: (data: { id: string; capabilities: any }) => ipcRenderer.invoke('update-model-capabilities', data),
+  getModelConfig: (provider: string) => ipcRenderer.invoke('get-model-config', provider),
+  checkGeminiConfig: (data: { apiKey: string; baseUrl?: string }) => ipcRenderer.invoke('check-gemini-config', data),
   // Stream APIs
   startStream: (data: {
     sessionId: string

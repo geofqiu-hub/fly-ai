@@ -1,0 +1,163 @@
+[
+  {
+    "_comment": "Gemini 3 Pro 预览版：多模态理解与推理，支持函数调用、思考型、代码执行、文件搜索、接地、结构化输出；输入 104 万 token，输出 6.5 万",
+    "modelId": "gemini-3-pro-preview",
+    "label": "Gemini 3 Pro（预览版）",
+    "supportsTools": true,
+    "type": "pro",
+    "inputTypes": ["text", "image", "video", "audio", "pdf"],
+    "outputTypes": ["text"],
+    "inputTokenLimit": 1048576,
+    "outputTokenLimit": 65536,
+    "capabilities": {
+      "functionCalling": true,
+      "imageGeneration": false,
+      "thinking": true,
+      "codeExecution": true,
+      "fileSearch": true,
+      "grounding": true,
+      "structuredOutput": true
+    }
+  },
+  {
+    "_comment": "Gemini 3 Pro Image 预览版：图片+文字输入，可输出图片；支持图片生成，不支持函数调用；输入 6.5 万、输出 3.2 万 token",
+    "modelId": "gemini-3-pro-image-preview",
+    "label": "Gemini 3 Pro Image（预览版）",
+    "supportsTools": false,
+    "type": "image",
+    "inputTypes": ["text", "image"],
+    "outputTypes": ["text", "image"],
+    "inputTokenLimit": 65536,
+    "outputTokenLimit": 32768,
+    "capabilities": {
+      "functionCalling": false,
+      "imageGeneration": true,
+      "thinking": true,
+      "codeExecution": false,
+      "fileSearch": false,
+      "grounding": false,
+      "structuredOutput": true
+    }
+  },
+  {
+    "_comment": "Gemini 3 Flash 预览版：均衡速度与能力，支持函数调用、思考型、代码执行等；输入 104 万、输出 6.5 万 token",
+    "modelId": "gemini-3-flash-preview",
+    "label": "Gemini 3 Flash（预览版）",
+    "supportsTools": true,
+    "type": "fast",
+    "inputTypes": ["text", "image", "video", "audio", "pdf"],
+    "outputTypes": ["text"],
+    "inputTokenLimit": 1048576,
+    "outputTokenLimit": 65536,
+    "capabilities": {
+      "functionCalling": true,
+      "imageGeneration": false,
+      "thinking": true,
+      "codeExecution": true,
+      "fileSearch": true,
+      "grounding": true,
+      "structuredOutput": true
+    }
+  },
+  {
+    "_comment": "Gemini 2.5 Flash 稳定版：性价比高，适合大规模与低延迟；支持函数调用、思考型、代码执行、接地等；输入 104 万、输出 6.5 万 token",
+    "modelId": "gemini-2.5-flash",
+    "label": "Gemini 2.5 Flash（稳定版）",
+    "supportsTools": true,
+    "type": "fast",
+    "inputTypes": ["text", "image", "video", "audio"],
+    "outputTypes": ["text"],
+    "inputTokenLimit": 1048576,
+    "outputTokenLimit": 65536,
+    "capabilities": {
+      "functionCalling": true,
+      "imageGeneration": false,
+      "thinking": true,
+      "codeExecution": true,
+      "fileSearch": true,
+      "grounding": true,
+      "structuredOutput": true
+    }
+  },
+  {
+    "_comment": "Gemini 2.5 Flash 图片：图文输入，可输出图片；支持图片生成，不支持函数调用；输入 6.5 万、输出 3.2 万 token",
+    "modelId": "gemini-2.5-flash-image",
+    "label": "Gemini 2.5 Flash Image（图片）",
+    "supportsTools": false,
+    "type": "image",
+    "inputTypes": ["text", "image"],
+    "outputTypes": ["text", "image"],
+    "inputTokenLimit": 65536,
+    "outputTokenLimit": 32768,
+    "capabilities": {
+      "functionCalling": false,
+      "imageGeneration": true,
+      "thinking": false,
+      "codeExecution": false,
+      "fileSearch": false,
+      "grounding": false,
+      "structuredOutput": true
+    }
+  },
+  {
+    "_comment": "Gemini 2.5 Flash-Lite 稳定版：速度最快、成本优化、高吞吐；支持函数调用、思考型、代码执行等；输入 104 万、输出 6.5 万 token",
+    "modelId": "gemini-2.5-flash-lite",
+    "label": "Gemini 2.5 Flash-Lite（稳定版）",
+    "supportsTools": true,
+    "type": "fast",
+    "inputTypes": ["text", "image", "video", "audio", "pdf"],
+    "outputTypes": ["text"],
+    "inputTokenLimit": 1048576,
+    "outputTokenLimit": 65536,
+    "capabilities": {
+      "functionCalling": true,
+      "imageGeneration": false,
+      "thinking": true,
+      "codeExecution": true,
+      "fileSearch": true,
+      "grounding": true,
+      "structuredOutput": true
+    }
+  },
+  {
+    "_comment": "Gemini 2.5 Pro 稳定版：高级推理与长上下文，适合代码/数学/STEM；支持函数调用、思考型、代码执行等；输入 104 万、输出 6.5 万 token",
+    "modelId": "gemini-2.5-pro",
+    "label": "Gemini 2.5 Pro（稳定版）",
+    "supportsTools": true,
+    "type": "pro",
+    "inputTypes": ["text", "image", "video", "audio", "pdf"],
+    "outputTypes": ["text"],
+    "inputTokenLimit": 1048576,
+    "outputTokenLimit": 65536,
+    "capabilities": {
+      "functionCalling": true,
+      "imageGeneration": false,
+      "thinking": true,
+      "codeExecution": true,
+      "fileSearch": true,
+      "grounding": true,
+      "structuredOutput": true
+    }
+  },
+  {
+    "_comment": "标题生成专用：首条消息自动生成对话标题时使用，不在设置页展示；与 2.5 Flash-Lite 同能力",
+    "modelId": "gemini-2.5-flash-lite",
+    "label": "标题生成（内部使用）",
+    "supportsTools": true,
+    "type": "title",
+    "hidden": true,
+    "inputTypes": ["text", "image", "video", "audio", "pdf"],
+    "outputTypes": ["text"],
+    "inputTokenLimit": 1048576,
+    "outputTokenLimit": 65536,
+    "capabilities": {
+      "functionCalling": true,
+      "imageGeneration": false,
+      "thinking": true,
+      "codeExecution": true,
+      "fileSearch": true,
+      "grounding": true,
+      "structuredOutput": true
+    }
+  }
+]

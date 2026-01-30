@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import type { Message, Agent, Model } from '../types/chat'
 import { DEFAULT_SYSTEM_PROMPT } from '../constants/prompts'
 
@@ -25,6 +25,7 @@ export const useChat = ({
   const [error, setError] = useState<string | null>(null)
 
   const [lastInput, setLastInput] = useState<{ text: string, attachments: any[] } | null>(null)
+  const lastSessionIdRef = useRef<string | null>(null)
 
   const parseMessages = (msgs: any[]): Message[] => {
     return msgs.map((m: any) => ({
@@ -81,8 +82,12 @@ export const useChat = ({
     // Generate title if this is the first message in the session (messages.length is 0)
     if (messages.length === 0 && autoRenameSession && sessionId) {
       console.log('[useChat] Triggering auto-rename for first message')
-      // Use gemini-2.5-flash-lite for title generation as requested
-      autoRenameSession(sessionId, text || 'New Image Chat', providerId, { apiKey, baseUrl, modelId: 'gemini-2.5-flash-lite' })
+      const configs = await window.api.getModelConfig('gemini')
+      const titleModelEntry = Array.isArray(configs)
+        ? configs.find((m: any) => m.type === 'title' && !m.hidden)
+        : null
+      const titleModelId = titleModelEntry?.modelId || 'gemini-2.5-flash-lite'
+      autoRenameSession(sessionId, text || 'New Image Chat', providerId, { apiKey, baseUrl, modelId: titleModelId })
     }
 
     console.log('[useChat] Saving user message...')
@@ -133,6 +138,27 @@ export const useChat = ({
   }, [currentSessionId, currentSessionAgent, currentModel, messages, createNewSession, loadMessages, autoRenameSession])
 
   useEffect(() => {
+    const lastSessionId = lastSessionIdRef.current
+
+    // 当用户切换会话（包括点击“新建对话”创建新会话）时：
+    // 1. 终止上一个会话正在进行的流式请求（如果有）
+    // 2. 清空流式相关的 UI 状态，避免在新会话里看到旧会话的「思考中」内容，也避免禁用发送按钮
+    if (lastSessionId && lastSessionId !== currentSessionId) {
+      try {
+        window.api.stopStream(lastSessionId)
+      } catch (e) {
+        console.warn('[useChat] Failed to stop previous stream', e)
+      }
+
+      setStreamingContent('')
+      setStreamingThought('')
+      setIsStreaming(false)
+      setActiveTool(null)
+      setError(null)
+    }
+
+    lastSessionIdRef.current = currentSessionId
+
     if (currentSessionId) {
       setMessages([]) // Clear messages when session changes to avoid flashing old content
       loadMessages(currentSessionId)

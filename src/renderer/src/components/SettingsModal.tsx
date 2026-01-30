@@ -12,6 +12,9 @@ export function SettingsModal({ isOpen, onClose, onSettingsChanged }: Props) {
   const [apiKey, setApiKey] = useState('')
   const [baseUrl, setBaseUrl] = useState('')
   const [geminiModels, setGeminiModels] = useState<any[]>([])
+  const [checkStatus, setCheckStatus] = useState<'idle' | 'checking' | 'ok' | 'error'>('idle')
+  const [checkMessage, setCheckMessage] = useState<string | null>(null)
+  const [geminiModelConfigs, setGeminiModelConfigs] = useState<any[]>([])
   const [isSaving, setIsSaving] = useState(false)
   const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle')
   const [agents, setAgents] = useState<any[]>([])
@@ -27,8 +30,12 @@ export function SettingsModal({ isOpen, onClose, onSettingsChanged }: Props) {
         setBaseUrl(config.base_url || '')
       }
 
-      const models = await window.api.getModels()
+      const [models, configs] = await Promise.all([
+        window.api.getModels('gemini'),
+        window.api.getModelConfig('gemini')
+      ])
       setGeminiModels(models)
+      setGeminiModelConfigs(Array.isArray(configs) ? configs : [])
 
       const [loadedAgents, loadedPresets] = await Promise.all([
         window.api.getAgents(),
@@ -42,6 +49,38 @@ export function SettingsModal({ isOpen, onClose, onSettingsChanged }: Props) {
     }
   }, [isOpen])
 
+  const handleCheckGeminiStatus = async () => {
+    if (!apiKey.trim()) {
+      setCheckStatus('error')
+      setCheckMessage('请先输入 Gemini API Key。')
+      return
+    }
+
+    setCheckStatus('checking')
+    setCheckMessage(null)
+
+    try {
+      const result = await window.api.checkGeminiConfig({
+        apiKey: apiKey.trim(),
+        baseUrl: baseUrl.trim() || undefined
+      })
+
+      if (result && result.success) {
+        setCheckStatus('ok')
+        setCheckMessage('连接成功，可以正常访问 Gemini 接口。')
+      } else if (result && result.error === 'NO_API_KEY') {
+        setCheckStatus('error')
+        setCheckMessage('请先输入 Gemini API Key。')
+      } else {
+        setCheckStatus('error')
+        setCheckMessage('连接失败，请检查 Key、Base URL 或网络。')
+      }
+    } catch (e) {
+      setCheckStatus('error')
+      setCheckMessage('检查连接时出现异常。')
+    }
+  }
+
   const handleSaveSettings = async () => {
     setIsSaving(true)
     setSaveStatus('idle')
@@ -54,9 +93,21 @@ export function SettingsModal({ isOpen, onClose, onSettingsChanged }: Props) {
         baseUrl: baseUrl.trim() || undefined
       })
 
-      // Save Model Mappings
+      // Save Model Mappings & capabilities，根据本地 JSON 配置写入是否支持工具
       for (const model of geminiModels) {
         await window.api.updateModelId({ id: model.id, modelId: model.modelId })
+        const configEntry = geminiModelConfigs.find((m: any) => m.modelId === model.modelId)
+        const tools = configEntry && typeof configEntry.supportsTools === 'boolean'
+          ? configEntry.supportsTools
+          : true
+
+        await window.api.updateModelCapabilities({
+          id: model.id,
+          capabilities: {
+            ...(model.capabilities || {}),
+            tools
+          }
+        })
       }
 
       setSaveStatus('success')
@@ -72,6 +123,18 @@ export function SettingsModal({ isOpen, onClose, onSettingsChanged }: Props) {
 
   const handleModelIdChange = (id: string, newModelId: string) => {
     setGeminiModels(prev => prev.map(m => m.id === id ? { ...m, modelId: newModelId } : m))
+  }
+
+  // 根据 models 表中当前的 modelId，找出对应 JSON 配置
+  const getGeminiOptionsForSlot = (slotName: string) => {
+    // 约定：models 表中默认的三条记录 name 分别为 "快速"、"Pro"、"图片"
+    const type =
+      slotName === '快速' ? 'fast' :
+      slotName === 'Pro' ? 'pro' :
+      slotName === '图片' ? 'image' :
+      'fast'
+
+    return geminiModelConfigs.filter((m: any) => m.type === type && !m.hidden)
   }
 
   const handleEditAgent = (agent: any | null) => {
@@ -211,6 +274,33 @@ export function SettingsModal({ isOpen, onClose, onSettingsChanged }: Props) {
                   <div>
                     <h3 className="text-base font-medium text-gray-900">Gemini API Config</h3>
                     <p className="text-xs text-gray-500">配置您的 Google Gemini API 密钥和基础 URL</p>
+                    <div className="mt-2 flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleCheckGeminiStatus}
+                        disabled={checkStatus === 'checking' || !apiKey.trim()}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium border transition-colors ${
+                          checkStatus === 'checking' || !apiKey.trim()
+                            ? 'border-gray-200 text-gray-400 bg-gray-50 cursor-not-allowed'
+                            : 'border-claude-accent/40 text-claude-accent bg-claude-accent/5 hover:bg-claude-accent/10'
+                        }`}
+                      >
+                        {checkStatus === 'checking' ? (
+                          <>
+                            <Loader2 size={12} className="animate-spin" />
+                            检查中…
+                          </>
+                        ) : (
+                          <>Check Status</>
+                        )}
+                      </button>
+                      {checkStatus === 'ok' && checkMessage && (
+                        <span className="text-[11px] text-emerald-600">{checkMessage}</span>
+                      )}
+                      {checkStatus === 'error' && checkMessage && (
+                        <span className="text-[11px] text-red-500">{checkMessage}</span>
+                      )}
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-1 gap-4">
@@ -244,21 +334,28 @@ export function SettingsModal({ isOpen, onClose, onSettingsChanged }: Props) {
                 <div className="space-y-4">
                   <div>
                     <h3 className="text-base font-medium text-gray-900">Model Mappings</h3>
-                    <p className="text-xs text-gray-500">自定义快速、思考等选项对应的具体模型 ID</p>
+                    <p className="text-xs text-gray-500">
+                      为「快速 / Pro / 图片」等选项选择实际使用的 Gemini 模型。模型列表来自内置配置文件。
+                    </p>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
                     {geminiModels.map((model) => (
-                      <div key={model.id} className="p-3 bg-gray-50 rounded-lg border border-gray-100">
-                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
+                      <div key={model.id} className="p-3 bg-gray-50 rounded-lg border border-gray-100 space-y-2">
+                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider">
                           {model.name}
                         </label>
-                        <input
-                          type="text"
+                        <select
                           value={model.modelId}
                           onChange={(e) => handleModelIdChange(model.id, e.target.value)}
-                          className="w-full px-3 py-1.5 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-claude-accent/20 text-xs font-mono"
-                        />
+                          className="w-full px-3 py-1.5 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-claude-accent/20 text-xs"
+                        >
+                          {getGeminiOptionsForSlot(model.name).map((opt: any) => (
+                            <option key={opt.modelId} value={opt.modelId}>
+                              {opt.label}
+                            </option>
+                          ))}
+                        </select>
                       </div>
                     ))}
                   </div>

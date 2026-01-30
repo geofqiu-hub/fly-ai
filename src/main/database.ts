@@ -277,25 +277,40 @@ db.exec(`
 
 // Initialize default models
 const initModels = () => {
-  const models = [
+  const defaultModels = [
     ['gemini-3-flash-preview', 'gemini', 'gemini-3-flash-preview', '快速', JSON.stringify({ text: true, image: true, tools: true }), 1000000, 0.0000001, 0.0000001, 1],
     ['gemini-3-pro-preview', 'gemini', 'gemini-3-pro-preview', 'Pro', JSON.stringify({ text: true, image: true, tools: true }), 2000000, 0.000001, 0.000001, 1],
     ['gemini-3-pro-image-preview', 'gemini', 'gemini-3-pro-image-preview', '图片', JSON.stringify({ text: true, image: true, tools: true }), 2000000, 0.000001, 0.000001, 1],
   ]
-  
-  const modelIds = models.map(m => m[2])
-  
-  // Delete models that are not in the predefined list
-  const placeholders = modelIds.map(() => '?').join(',')
-  db.prepare(`DELETE FROM models WHERE model_id NOT IN (${placeholders})`).run(...modelIds)
-  
-  const insert = db.prepare('INSERT OR REPLACE INTO models (id, provider, model_id, name, capabilities, context_window, input_cost, output_cost, is_enabled) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
-  
-  models.forEach(model => {
-    try {
-      insert.run(...model)
-    } catch (error) {
-      console.error('Failed to insert model:', model[0], error)
+
+  // 如果用户已经自定义过 models，就不要再用默认值覆盖 / 删除他的配置
+  const existing = db.prepare('SELECT id, provider, model_id FROM models').all() as any[]
+
+  if (existing.length === 0) {
+    // 首次启动：写入默认模型
+    const insert = db.prepare('INSERT OR REPLACE INTO models (id, provider, model_id, name, capabilities, context_window, input_cost, output_cost, is_enabled) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+    defaultModels.forEach(model => {
+      try {
+        insert.run(...model)
+      } catch (error) {
+        console.error('Failed to insert default model:', model[0], error)
+      }
+    })
+    return
+  }
+
+  // 非首次启动：只在缺少某个默认 id 时补一条，不修改用户已经改过的 model_id
+  const existingIds = new Set(existing.map(m => m.id))
+  const insertIfMissing = db.prepare('INSERT INTO models (id, provider, model_id, name, capabilities, context_window, input_cost, output_cost, is_enabled) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+
+  defaultModels.forEach(model => {
+    const id = model[0]
+    if (!existingIds.has(id)) {
+      try {
+        insertIfMissing.run(...model)
+      } catch (error) {
+        console.error('Failed to insert missing default model:', id, error)
+      }
     }
   })
 }

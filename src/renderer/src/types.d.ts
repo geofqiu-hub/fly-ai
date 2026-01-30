@@ -48,8 +48,11 @@ export interface IElectronAPI {
   // Model APIs
   getModels: (provider?: string) => Promise<any[]>
   getModel: (modelId: string) => Promise<any>
+  getModelConfig: (provider: string) => Promise<any>
   updateModelStatus: (data: { modelId: string; isEnabled: boolean }) => Promise<void>
   updateModelId: (data: { id: string; modelId: string }) => Promise<void>
+  updateModelCapabilities: (data: { id: string; capabilities: any }) => Promise<void>
+  checkGeminiConfig: (data: { apiKey: string; baseUrl?: string }) => Promise<{ success?: boolean; error?: string } | null>
   // Stream APIs
   startStream: (data: {
     sessionId: string
