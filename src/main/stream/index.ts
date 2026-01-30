@@ -16,10 +16,7 @@ class StreamManager {
     params: ChatParams,
     window: BrowserWindow
   ): Promise<void> {
-    console.log('[StreamManager] startStream called', { sessionId, providerId: provider.id })
-    
     if (this.sessions.has(sessionId)) {
-      console.log('[StreamManager] Stopping existing stream')
       this.stopStream(sessionId)
     }
 
@@ -29,7 +26,6 @@ class StreamManager {
       callbacks: {
         ...params.callbacks,
         onChunk: (chunk: string) => {
-          console.log('[StreamManager] Chunk received:', chunk)
           window.webContents.send('stream-chunk', { sessionId, chunk })
           params.callbacks.onChunk?.(chunk)
         }
@@ -43,28 +39,28 @@ class StreamManager {
     }
 
     this.sessions.set(sessionId, session)
-    console.log('[StreamManager] Session stored, starting iteration...')
 
     try {
       for await (const event of generator) {
-        console.log('[StreamManager] Event:', event.type)
         window.webContents.send('stream-event', { sessionId, event })
 
         if (event.type === 'finish') {
-          console.log('[StreamManager] Stream finished')
           this.sessions.delete(sessionId)
           break
         }
 
         if (event.type === 'error') {
-          console.log('[StreamManager] Stream error')
           this.sessions.delete(sessionId)
           break
         }
       }
     } catch (error) {
       console.error('[StreamManager] Error:', error)
-      window.webContents.send('stream-error', { sessionId, error: (error as Error).message })
+      let message = (error as Error).message
+      if (/fetch failed/i.test(message)) {
+        message = `${message}（请检查网络连接或代理）`
+      }
+      window.webContents.send('stream-error', { sessionId, error: message })
       this.sessions.delete(sessionId)
     }
   }
@@ -92,25 +88,17 @@ class StreamManager {
 export const streamManager = new StreamManager()
 
 export function setupStreamIPC() {
-  console.log('[setupStreamIPC] Setting up stream IPC handlers')
-  
   ipcMain.handle('start-stream', async (event, { sessionId, providerId, modelId, messages, systemPrompt, temperature, maxTokens, apiKey, baseUrl }) => {
-    console.log('[IPC] start-stream called', { sessionId, providerId, modelId, messagesCount: messages.length, baseUrl })
-    
     const { GeminiProvider } = await import('../providers/gemini-provider')
     const { providerManager } = await import('../providers/provider-manager')
 
     const provider = providerManager.getProvider(providerId, modelId)
-    console.log('[IPC] Provider:', provider)
-    
     if (!provider) {
       console.error('[IPC] Provider not found:', providerId)
       return { success: false, error: `Provider not found: ${providerId}` }
     }
 
     const window = BrowserWindow.fromWebContents(event.sender)!
-    console.log('[IPC] BrowserWindow:', !!window)
-    
     try {
       await streamManager.startStream(sessionId, provider, {
         sessionId, // 传递 sessionId 以便 Provider 保存文件
@@ -130,7 +118,6 @@ export function setupStreamIPC() {
           onError: () => {}
         }
       }, window)
-      console.log('[IPC] Stream started successfully')
       return { success: true }
     } catch (err) {
       console.error('[IPC] Stream start error:', err)
@@ -139,7 +126,6 @@ export function setupStreamIPC() {
   })
 
   ipcMain.handle('stop-stream', async (_, sessionId: string) => {
-    console.log('[IPC] stop-stream called', { sessionId })
     streamManager.stopStream(sessionId)
     return { success: true }
   })
@@ -147,6 +133,4 @@ export function setupStreamIPC() {
   ipcMain.handle('is-streaming', async (_, sessionId: string) => {
     return streamManager.isStreaming(sessionId)
   })
-  
-  console.log('[setupStreamIPC] Stream IPC handlers registered')
 }

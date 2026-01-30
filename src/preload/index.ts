@@ -66,10 +66,7 @@ contextBridge.exposeInMainWorld('api', {
     maxTokens?: number
     apiKey: string
     baseUrl?: string
-  }) => {
-    console.log('[preload] startStream called', data)
-    return ipcRenderer.invoke('start-stream', data)
-  },
+  }) => ipcRenderer.invoke('start-stream', data),
   stopStream: (sessionId: string) => ipcRenderer.invoke('stop-stream', sessionId),
   isStreaming: (sessionId: string) => ipcRenderer.invoke('is-streaming', sessionId),
   onStreamChunk: (callback: (data: { sessionId: string; chunk: string }) => void) => {

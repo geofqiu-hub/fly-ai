@@ -17,7 +17,7 @@ GEMINI_API_KEY="你的真实 API Key" node scripts/fetch-gemini-models.js
    - 调用 `https://generativelanguage.googleapis.com/v1/models` 拉取当前所有 Gemini 模型；
    - 生成 / 覆盖：
      - `docs/gemini-models.md`（本文档，包含一个可阅读的模型表格）；
-     - `src/main/models/gemini-models.json`（结构化 JSON，可供代码使用）。
+     - `docs/gemini-models-api.json`（API 返回的结构化 JSON，仅供参考；应用配置为 `src/main/config/gemini-models.json`）。
 
 3. 将更新后的文件提交到仓库，即可分享给团队其他成员。
 

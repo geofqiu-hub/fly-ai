@@ -6,7 +6,7 @@
 //
 // The script will create/overwrite:
 //   - docs/gemini-models.md
-//   - src/main/models/gemini-models.json
+//   - docs/gemini-models-api.json (raw API response, for reference; app config is src/main/config/gemini-models.json)
 
 import fs from 'fs'
 import path from 'path'
@@ -54,8 +54,8 @@ async function main() {
     raw: m,
   }))
 
-  // Write JSON config for potential programmatic use
-  const jsonOutPath = path.resolve(__dirname, '../src/main/models/gemini-models.json')
+  // Write JSON for reference (app config is manually maintained at src/main/config/gemini-models.json)
+  const jsonOutPath = path.resolve(__dirname, '../docs/gemini-models-api.json')
   fs.mkdirSync(path.dirname(jsonOutPath), { recursive: true })
   fs.writeFileSync(jsonOutPath, JSON.stringify(normalized, null, 2), 'utf8')
   console.log('[fetch-gemini-models] Wrote JSON:', jsonOutPath)

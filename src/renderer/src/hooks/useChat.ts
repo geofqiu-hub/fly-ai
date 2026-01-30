@@ -22,10 +22,21 @@ export const useChat = ({
   const [streamingThought, setStreamingThought] = useState('')
   const [isStreaming, setIsStreaming] = useState(false)
   const [activeTool, setActiveTool] = useState<{ name: string; args: any } | null>(null)
+  const [toolCallLog, setToolCallLog] = useState<Array<{
+    id: string
+    name: string
+    args: Record<string, unknown>
+    output?: unknown
+    isError?: boolean
+    status: 'running' | 'done'
+  }>>([])
   const [error, setError] = useState<string | null>(null)
+  const [streamingImagePending, setStreamingImagePending] = useState(false)
 
   const [lastInput, setLastInput] = useState<{ text: string, attachments: any[] } | null>(null)
   const lastSessionIdRef = useRef<string | null>(null)
+  const toolCallLogRef = useRef<typeof toolCallLog>([])
+  const streamingThoughtRef = useRef('')
 
   const parseMessages = (msgs: any[]): Message[] => {
     return msgs.map((m: any) => ({
@@ -41,7 +52,6 @@ export const useChat = ({
   }, [])
 
   const handleSend = useCallback(async (text: string, attachments: any[] = []) => {
-    console.log('[useChat] handleSend called', { text, attachmentsCount: attachments.length, currentSessionId, currentSessionAgent, currentModel })
     setError(null)
     setLastInput({ text, attachments })
     
@@ -49,9 +59,7 @@ export const useChat = ({
     const isNewSession = !currentSessionId
     
     if (isNewSession) {
-      console.log('[useChat] No current session, creating new one')
       sessionId = await createNewSession()
-      console.log('[useChat] New session created:', sessionId)
     }
     
     if (!sessionId) {
@@ -59,10 +67,7 @@ export const useChat = ({
       return
     }
 
-    // 如果当前有错误，说明上次发送失败了
-    // 如果用户发送了新内容，我们应该先清理掉上次那个没有得到回复的错误消息
     if (error && sessionId) {
-      console.log('[useChat] Cleaning up last failed message before sending new one')
       await window.api.deleteLastMessage(sessionId)
     }
 
@@ -79,18 +84,10 @@ export const useChat = ({
     const modelId = currentModel?.modelId || 'gemini-3-flash-preview'
     const providerId = currentModel?.provider || 'gemini'
 
-    // Generate title if this is the first message in the session (messages.length is 0)
     if (messages.length === 0 && autoRenameSession && sessionId) {
-      console.log('[useChat] Triggering auto-rename for first message')
-      const configs = await window.api.getModelConfig('gemini')
-      const titleModelEntry = Array.isArray(configs)
-        ? configs.find((m: any) => m.type === 'title' && !m.hidden)
-        : null
-      const titleModelId = titleModelEntry?.modelId || 'gemini-2.5-flash-lite'
-      autoRenameSession(sessionId, text || 'New Image Chat', providerId, { apiKey, baseUrl, modelId: titleModelId })
+      autoRenameSession(sessionId, text || 'New Image Chat', providerId, { apiKey, baseUrl, modelId })
     }
 
-    console.log('[useChat] Saving user message...')
       await window.api.saveMessage({
         sessionId,
         role: 'user',
@@ -101,19 +98,18 @@ export const useChat = ({
         agentId: currentSessionAgent?.id
       })
 
-    console.log('[useChat] Loading messages after save...')
     await loadMessages(sessionId)
 
     setIsStreaming(true)
     setStreamingContent('')
     setStreamingThought('')
+    streamingThoughtRef.current = ''
     setActiveTool(null)
+    setToolCallLog([])
 
     const currentMsgs = await window.api.getMessages(sessionId)
     const messagesHistory = parseMessages(currentMsgs)
 
-    console.log('[useChat] Starting stream...', { sessionId, messagesCount: messagesHistory.length })
-    
     const systemPrompt = currentSessionAgent?.system_prompt 
       ? `${currentSessionAgent.system_prompt}\n\nPlease output in standard Markdown format.`
       : DEFAULT_SYSTEM_PROMPT
@@ -129,7 +125,6 @@ export const useChat = ({
         apiKey,
         baseUrl
       })
-      console.log('[useChat] Stream started successfully, result:', result)
     } catch (err: any) {
       console.error('[useChat] Stream start error:', err)
       setError(err.message || 'Failed to start stream')
@@ -152,6 +147,7 @@ export const useChat = ({
 
       setStreamingContent('')
       setStreamingThought('')
+      setStreamingImagePending(false)
       setIsStreaming(false)
       setActiveTool(null)
       setError(null)
@@ -175,21 +171,37 @@ export const useChat = ({
     }
 
     const handleEvent = ({ sessionId, event }: any) => {
-      console.log('[useChat] handleEvent', { sessionId, eventType: event.type })
       if (sessionId !== currentSessionId) return
 
-      if (event.type === 'finish') {
-        // 使用当前选择的模型，智能体不绑定模型
+      if (event.type === 'start') {
+        setStreamingImagePending(event.data?.isImageModel === true)
+      } else if (event.type === 'file-delta') {
+        setStreamingImagePending(false)
+      } else if (event.type === 'finish') {
+        setStreamingImagePending(false)
         const modelId = currentModel?.modelId || 'gemini-3-flash-preview'
         const sid = currentSessionId || 'default'
-        
+        const logToSave = toolCallLogRef.current
+        const parts =
+          logToSave.length > 0
+            ? logToSave.map((entry) => ({
+                type: 'tool-call' as const,
+                toolName: entry.name,
+                toolInput: entry.args,
+                toolOutput: entry.output,
+                metadata: { isError: entry.isError }
+              }))
+            : undefined
+
+        const thoughtToSave = streamingThoughtRef.current.trim() || undefined
         window.api.saveMessage({
           sessionId: sid,
           role: 'assistant',
           content: event.data.content,
-          thought: streamingThought || undefined,
+          thought: thoughtToSave,
           type: 'text',
-          modelId
+          modelId,
+          parts
         })
           .then(() => {
             if (currentSessionId) {
@@ -203,27 +215,62 @@ export const useChat = ({
           .finally(() => {
             setStreamingContent('')
             setStreamingThought('')
+            setStreamingImagePending(false)
+            streamingThoughtRef.current = ''
             setIsStreaming(false)
             setActiveTool(null)
+            setToolCallLog([])
           })
       } else if (event.type === 'thought-delta') {
-        setStreamingThought(prev => prev + event.data)
+        const delta = event.data ?? ''
+        setStreamingThought((prev) => {
+          const next = prev + delta
+          streamingThoughtRef.current = next
+          return next
+        })
       } else if (event.type === 'tool-call') {
-        setActiveTool({ name: event.data.name, args: event.data.args })
+        const { name, args } = event.data
+        setActiveTool({ name, args })
+        setToolCallLog((prev) => {
+          const next = [
+            ...prev,
+            { id: `tool-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`, name, args: args || {}, status: 'running' as const }
+          ]
+          toolCallLogRef.current = next
+          return next
+        })
       } else if (event.type === 'tool-result') {
         setActiveTool(null)
+        setToolCallLog((prev) => {
+          const next = [...prev]
+          for (let i = next.length - 1; i >= 0; i--) {
+            if (next[i].status === 'running') {
+              next[i] = {
+                ...next[i],
+                output: event.data?.output,
+                isError: event.data?.isError,
+                status: 'done'
+              }
+              break
+            }
+          }
+          toolCallLogRef.current = next
+          return next
+        })
       } else if (event.type === 'error') {
         console.error('[useChat] Stream error event:', event.data)
+        setStreamingImagePending(false)
         setIsStreaming(false)
-        setError(event.data || 'Unknown stream error')
+        setError(typeof event.data === 'string' ? event.data : (event.data?.message ?? event.data ?? 'Unknown stream error'))
       }
     }
 
-    const handleError = ({ sessionId, error }: any) => {
-      console.error('[useChat] handleError', { sessionId, error })
+    const handleError = ({ sessionId, error: err }: any) => {
+      console.error('[useChat] handleError', { sessionId, error: err })
       if (sessionId === currentSessionId) {
+        setStreamingImagePending(false)
         setIsStreaming(false)
-        setError(typeof error === 'string' ? error : (error.message || 'Unknown error occurred'))
+        setError(typeof err === 'string' ? err : (err?.message || 'Unknown error occurred'))
       }
     }
 
@@ -232,7 +279,6 @@ export const useChat = ({
     window.api.onStreamError(handleError)
 
     return () => {
-      console.log('[useChat] Cleaning up stream listeners')
       window.api.removeStreamListeners()
     }
   }, [currentSessionId, currentModel])
@@ -295,7 +341,9 @@ export const useChat = ({
     streamingContent,
     streamingThought,
     isStreaming,
+    streamingImagePending,
     activeTool,
+    toolCallLog,
     error,
     handleSend,
     retry,

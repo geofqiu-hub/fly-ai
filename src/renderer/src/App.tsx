@@ -12,6 +12,7 @@ function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true) // 默认折叠
   const [currentModel, setCurrentModel] = useState<any>(null)
+  const [modelsRefreshKey, setModelsRefreshKey] = useState(0)
 
   // ========== 会话管理 ==========
   const sessions = useSessions()
@@ -75,8 +76,6 @@ function App() {
 
   // ========== 初始化 ==========
   const initApp = async () => {
-    const sessionsCount = (await window.api.getSessions()).length
-    console.log('🚀 App initialized -', sessionsCount, 'sessions found')
 
     // Load last used model
     const lastModelId = await window.api.getSetting('last_used_model')
@@ -127,6 +126,23 @@ function App() {
     await sessions.updateSessionAgent(agentId)
   }
 
+  // 设置保存后刷新模型列表与当前选中模型，使修改的模型映射实时生效
+  const handleSettingsChanged = async () => {
+    setModelsRefreshKey(k => k + 1)
+    const models = await window.api.getModels()
+    if (!models?.length) return
+    if (currentModel?.id) {
+      const sameSlot = models.find((m: any) => m.id === currentModel.id)
+      if (sameSlot) {
+        setCurrentModel(sameSlot)
+        return
+      }
+    }
+    const lastModelId = await window.api.getSetting('last_used_model')
+    const model = models.find((m: any) => m.modelId === lastModelId) || models[0]
+    setCurrentModel(model)
+  }
+
   return (
     <div className="flex h-screen w-full bg-claude-bg text-gray-800 font-sans selection:bg-claude-accent selection:text-white">
       <Sidebar
@@ -152,7 +168,9 @@ function App() {
           streamingContent={chat.streamingContent}
           streamingThought={chat.streamingThought}
           isStreaming={chat.isStreaming}
+          streamingImagePending={chat.streamingImagePending}
           activeTool={chat.activeTool}
+          toolCallLog={chat.toolCallLog}
           error={chat.error}
           onRetry={chat.retry}
         />
@@ -164,11 +182,13 @@ function App() {
           onSelectModel={handleSelectModel}
           canChangeModel={chat.messages.length === 0}
           onSelectAgent={handleSelectAgent}
+          modelsRefreshKey={modelsRefreshKey}
         />
       </div>
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
+        onSettingsChanged={handleSettingsChanged}
       />
     </div>
   )

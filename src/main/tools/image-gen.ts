@@ -21,9 +21,7 @@ export class ImageGenTool implements ToolExecutor {
 
   async execute(args: { prompt: string }, context: { sessionId: string; apiKey: string; baseUrl?: string; onEvent?: (event: any) => void }) {
     const { sessionId, apiKey, baseUrl, onEvent } = context
-    const targetModelId = 'gemini-3-pro-image-preview'
-
-    console.log(`[ImageGenTool] Generating image with prompt: ${args.prompt} using model: ${targetModelId}`)
+    const targetModelId = 'gemini-2.5-flash-image'
 
     const provider = providerManager.getProvider('gemini')
     if (!provider) {

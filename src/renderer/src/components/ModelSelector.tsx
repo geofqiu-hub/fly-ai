@@ -8,9 +8,11 @@ interface Props {
   onSelectModel: (model: Model | null) => void
   models?: Model[]
   disabled?: boolean
+  /** 变更时重新拉取模型列表，用于设置保存后实时生效 */
+  modelsRefreshKey?: number
 }
 
-export function ModelSelector({ selectedModelId, onSelectModel, models = [], disabled = false }: Props) {
+export function ModelSelector({ selectedModelId, onSelectModel, models = [], disabled = false, modelsRefreshKey }: Props) {
   const [isOpen, setIsOpen] = useState(false)
   const [loadedModels, setLoadedModels] = useState<Model[]>([])
 
@@ -24,7 +26,7 @@ export function ModelSelector({ selectedModelId, onSelectModel, models = [], dis
       }
     }
     loadModels()
-  }, [])
+  }, [modelsRefreshKey])
 
   const displayModels = models.length > 0 ? models : loadedModels
   const selectedModel = displayModels.find(m => m.modelId === selectedModelId)

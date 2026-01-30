@@ -5,16 +5,11 @@ class DefaultProviderManager implements ProviderManager {
   private modelCache: Map<string, Model[]> = new Map()
 
   registerProvider(provider: Provider): void {
-    console.log('[ProviderManager] Registering provider:', provider.id)
     this.providers.set(provider.id, provider)
-    console.log('[ProviderManager] Providers registered:', Array.from(this.providers.keys()))
   }
 
   getProvider(providerId: string, modelId?: string): Provider | null {
-    console.log('[ProviderManager] Getting provider:', providerId, 'Available:', Array.from(this.providers.keys()))
-    const provider = this.providers.get(providerId)
-    console.log('[ProviderManager] Found provider:', !!provider)
-    return provider || null
+    return this.providers.get(providerId) || null
   }
 
   getAvailableProviders(): Provider[] {

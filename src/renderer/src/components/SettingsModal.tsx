@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { X, Key, Save, Check, AlertCircle, Loader2, Plus, Trash2, Edit2, User } from 'lucide-react'
+import { X, Key, Save, Check, AlertCircle, Loader2, Plus, Trash2, Edit2, User, FolderOpen } from 'lucide-react'
 
 interface Props {
   isOpen: boolean
@@ -8,7 +8,7 @@ interface Props {
 }
 
 export function SettingsModal({ isOpen, onClose, onSettingsChanged }: Props) {
-  const [activeTab, setActiveTab] = useState<'models' | 'agents'>('models')
+  const [activeTab, setActiveTab] = useState<'models' | 'agents' | 'tools'>('models')
   const [apiKey, setApiKey] = useState('')
   const [baseUrl, setBaseUrl] = useState('')
   const [geminiModels, setGeminiModels] = useState<any[]>([])
@@ -21,6 +21,12 @@ export function SettingsModal({ isOpen, onClose, onSettingsChanged }: Props) {
   const [presets, setPresets] = useState<any[]>([])
   const [editingAgent, setEditingAgent] = useState<any | null>(null)
   const [isSavingAgent, setIsSavingAgent] = useState(false)
+  const [fileScope, setFileScope] = useState<'workspace' | 'device'>('workspace')
+  const [workspacePath, setWorkspacePath] = useState('')
+  const [permissionEdit, setPermissionEdit] = useState<'allow' | 'deny'>('deny')
+  const [permissionBash, setPermissionBash] = useState<'allow' | 'deny'>('deny')
+  const [isSavingTools, setIsSavingTools] = useState(false)
+  const [saveStatusTools, setSaveStatusTools] = useState<'idle' | 'success' | 'error'>('idle')
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -37,12 +43,20 @@ export function SettingsModal({ isOpen, onClose, onSettingsChanged }: Props) {
       setGeminiModels(models)
       setGeminiModelConfigs(Array.isArray(configs) ? configs : [])
 
-      const [loadedAgents, loadedPresets] = await Promise.all([
+      const [loadedAgents, loadedPresets, scope, wpath, pEdit, pBash] = await Promise.all([
         window.api.getAgents(),
-        window.api.getPresetAgents()
+        window.api.getPresetAgents(),
+        window.api.getSetting('file_scope'),
+        window.api.getSetting('workspace_path'),
+        window.api.getSetting('permission_edit'),
+        window.api.getSetting('permission_bash')
       ])
       setAgents(loadedAgents || [])
       setPresets(loadedPresets || [])
+      setFileScope(scope === 'device' ? 'device' : 'workspace')
+      setWorkspacePath(wpath ?? '')
+      setPermissionEdit(pEdit === 'allow' ? 'allow' : 'deny')
+      setPermissionBash(pBash === 'allow' ? 'allow' : 'deny')
     }
     if (isOpen) {
       loadSettings()
@@ -93,19 +107,21 @@ export function SettingsModal({ isOpen, onClose, onSettingsChanged }: Props) {
         baseUrl: baseUrl.trim() || undefined
       })
 
-      // Save Model Mappings & capabilities，根据本地 JSON 配置写入是否支持工具
+      // Save Model Mappings & capabilities，根据本地 JSON 配置写入是否支持工具、思考过程等
       for (const model of geminiModels) {
         await window.api.updateModelId({ id: model.id, modelId: model.modelId })
         const configEntry = geminiModelConfigs.find((m: any) => m.modelId === model.modelId)
         const tools = configEntry && typeof configEntry.supportsTools === 'boolean'
           ? configEntry.supportsTools
           : true
+        const thinking = configEntry?.capabilities?.thinking === true
 
         await window.api.updateModelCapabilities({
           id: model.id,
           capabilities: {
             ...(model.capabilities || {}),
-            tools
+            tools,
+            thinking
           }
         })
       }
@@ -123,6 +139,25 @@ export function SettingsModal({ isOpen, onClose, onSettingsChanged }: Props) {
 
   const handleModelIdChange = (id: string, newModelId: string) => {
     setGeminiModels(prev => prev.map(m => m.id === id ? { ...m, modelId: newModelId } : m))
+  }
+
+  const handleSaveToolsSettings = async () => {
+    setIsSavingTools(true)
+    setSaveStatusTools('idle')
+    try {
+      await window.api.saveSetting('file_scope', fileScope)
+      await window.api.saveSetting('workspace_path', workspacePath.trim())
+      await window.api.saveSetting('permission_edit', permissionEdit)
+      await window.api.saveSetting('permission_bash', permissionBash)
+      setSaveStatusTools('success')
+      onSettingsChanged?.()
+      setTimeout(() => setSaveStatusTools('idle'), 2000)
+    } catch {
+      setSaveStatusTools('error')
+      setTimeout(() => setSaveStatusTools('idle'), 3000)
+    } finally {
+      setIsSavingTools(false)
+    }
   }
 
   // 根据 models 表中当前的 modelId，找出对应 JSON 配置
@@ -260,7 +295,20 @@ export function SettingsModal({ isOpen, onClose, onSettingsChanged }: Props) {
                   : 'text-gray-600 hover:bg-gray-100'
               }`}
             >
-              <span>智能体</span>
+              <User size={16} />
+              智能体
+            </button>
+
+            <button
+              onClick={() => setActiveTab('tools')}
+              className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
+                activeTab === 'tools'
+                  ? 'bg-white shadow-sm text-claude-accent'
+                  : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              <FolderOpen size={16} />
+              文件与工具
             </button>
           </div>
 
@@ -392,6 +440,127 @@ export function SettingsModal({ isOpen, onClose, onSettingsChanged }: Props) {
                     <>
                       <Save size={16} />
                       Save Settings
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
+
+            {/* 文件与工具 Panel */}
+            {activeTab === 'tools' && (
+              <div className="space-y-8">
+                <div>
+                  <h3 className="text-base font-medium text-gray-900">文件与工具</h3>
+                  <p className="text-xs text-gray-500">控制 AI 文件类工具（read_file、list_dir、grep、glob 等）的访问范围，以及编辑/执行权限。</p>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-800">文件读取范围</h4>
+                    <p className="text-xs text-gray-500 mb-2">
+                      控制 AI 工具可访问的路径：仅工作区或整个设备。选「整个设备」时支持绝对路径，单文件最大 2MB。
+                    </p>
+                    <div className="flex gap-4">
+                      <label className="inline-flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="file_scope_tools"
+                          checked={fileScope === 'workspace'}
+                          onChange={() => setFileScope('workspace')}
+                          className="text-claude-accent focus:ring-claude-accent"
+                        />
+                        <span className="text-sm">仅工作区</span>
+                      </label>
+                      <label className="inline-flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="file_scope_tools"
+                          checked={fileScope === 'device'}
+                          onChange={() => setFileScope('device')}
+                          className="text-claude-accent focus:ring-claude-accent"
+                        />
+                        <span className="text-sm">整个设备</span>
+                      </label>
+                    </div>
+                    {fileScope === 'device' && (
+                      <div className="flex items-start gap-2 p-3 mt-2 bg-amber-50 border border-amber-200 rounded-lg">
+                        <AlertCircle className="text-amber-600 mt-0.5 shrink-0" size={16} />
+                        <div className="text-xs text-amber-800">
+                          <p className="font-medium mb-1">安全提示</p>
+                          <p>开启后 AI 可读取设备上任意可读文件（含敏感文件）。请勿在不受信任的对话中开启，并注意单文件 2MB 限制。</p>
+                        </div>
+                      </div>
+                    )}
+                    <div className="mt-3">
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">工作区路径（可选）</label>
+                      <input
+                        type="text"
+                        value={workspacePath}
+                        onChange={(e) => setWorkspacePath(e.target.value)}
+                        placeholder="留空则使用应用启动目录"
+                        className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-claude-accent/20 focus:border-claude-accent/50 text-sm font-mono"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <h4 className="text-sm font-medium text-gray-800">编辑与执行权限</h4>
+                    <p className="text-xs text-gray-500">
+                      控制 AI 是否可修改文件（edit / write）或执行 shell 命令（bash）。默认关闭，开启后命令在工作区根目录执行。
+                    </p>
+                    <label className="inline-flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={permissionEdit === 'allow'}
+                        onChange={(e) => setPermissionEdit(e.target.checked ? 'allow' : 'deny')}
+                        className="rounded border-gray-300 text-claude-accent focus:ring-claude-accent"
+                      />
+                      <span className="text-sm">允许编辑/写入文件（edit、write）</span>
+                    </label>
+                    <label className="inline-flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={permissionBash === 'allow'}
+                        onChange={(e) => setPermissionBash(e.target.checked ? 'allow' : 'deny')}
+                        className="rounded border-gray-300 text-claude-accent focus:ring-claude-accent"
+                      />
+                      <span className="text-sm">允许执行 shell 命令（bash）</span>
+                    </label>
+                    {(permissionEdit === 'allow' || permissionBash === 'allow') && (
+                      <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                        <AlertCircle className="text-amber-600 mt-0.5 shrink-0" size={16} />
+                        <div className="text-xs text-amber-800">
+                          <p className="font-medium mb-1">安全提示</p>
+                          <p>开启后 AI 可在工作区内修改文件或执行任意命令，请仅在可信环境中使用。</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <button
+                  onClick={handleSaveToolsSettings}
+                  disabled={isSavingTools}
+                  className={`flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg text-sm font-medium transition-all shadow-sm ${
+                    isSavingTools
+                      ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                      : 'bg-claude-accent text-white hover:opacity-90 active:scale-[0.98]'
+                  }`}
+                >
+                  {isSavingTools ? (
+                    <>
+                      <Loader2 className="animate-spin" size={16} />
+                      保存中…
+                    </>
+                  ) : saveStatusTools === 'success' ? (
+                    <>
+                      <Check size={16} />
+                      已保存
+                    </>
+                  ) : (
+                    <>
+                      <Save size={16} />
+                      保存设置
                     </>
                   )}
                 </button>

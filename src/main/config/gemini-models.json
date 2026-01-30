@@ -20,7 +20,7 @@
     }
   },
   {
-    "_comment": "Gemini 3 Pro Image 预览版：图片+文字输入，可输出图片；支持图片生成，不支持函数调用；输入 6.5 万、输出 3.2 万 token",
+    "_comment": "Gemini 3 Pro Image 预览版：图片+文字输入，可输出图片；支持图片生成，不支持函数调用；不支持 thinking，不传 thinkingConfig",
     "modelId": "gemini-3-pro-image-preview",
     "label": "Gemini 3 Pro Image（预览版）",
     "supportsTools": false,
@@ -32,7 +32,7 @@
     "capabilities": {
       "functionCalling": false,
       "imageGeneration": true,
-      "thinking": true,
+      "thinking": false,
       "codeExecution": false,
       "fileSearch": false,
       "grounding": false,
@@ -146,6 +146,7 @@
     "supportsTools": true,
     "type": "title",
     "hidden": true,
+    "titleGeneration": true,
     "inputTypes": ["text", "image", "video", "audio", "pdf"],
     "outputTypes": ["text"],
     "inputTokenLimit": 1048576,

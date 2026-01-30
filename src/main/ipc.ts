@@ -97,7 +97,32 @@ export function setupIPC() {
     if (!provider || !provider.generateTitle) {
       return 'New Chat'
     }
-    return provider.generateTitle({ config, message })
+    let titleModelIds: string[] | undefined
+    try {
+      const isDev = process.env.NODE_ENV === 'development'
+      const configPath = isDev
+        ? path.join(process.cwd(), 'src/main/config', `${providerId}-models.json`)
+        : path.join(__dirname, 'config', `${providerId}-models.json`)
+      if (fs.existsSync(configPath)) {
+        const raw = fs.readFileSync(configPath, 'utf-8')
+        const data = JSON.parse(raw)
+        const list = Array.isArray(data) ? data : []
+        titleModelIds = list
+          .filter((m: { titleGeneration?: boolean }) => m.titleGeneration === true)
+          .map((m: { modelId: string }) => m.modelId)
+      }
+    } catch (e) {
+      console.error('[IPC] get title model ids error:', e)
+    }
+    // 配置文件未找到或没有 titleGeneration 模型时，用当前对话模型尝试
+    if (!titleModelIds?.length && config?.modelId) {
+      titleModelIds = [config.modelId]
+    }
+    // 末尾加上当前对话模型作为回退（去重），避免专用标题模型不可用时完全不生成
+    if (titleModelIds?.length && config?.modelId && !titleModelIds.includes(config.modelId)) {
+      titleModelIds = [...titleModelIds, config.modelId]
+    }
+    return provider.generateTitle({ config, message, titleModelIds })
   })
 
   ipcMain.handle('delete-session', async (_, sessionId: string) => {

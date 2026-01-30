@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Image as ImageIcon, User, Bot, AlertCircle, RefreshCw, Paperclip, X, ZoomIn, Download, Brain, ChevronDown, Copy, Check } from 'lucide-react'
+import { Image as ImageIcon, User, Bot, AlertCircle, RefreshCw, Paperclip, X, ZoomIn, Download, Brain, ChevronDown, Copy, Check, Wrench, Loader2, ChevronRight } from 'lucide-react'
 import clsx from 'clsx'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -7,21 +7,34 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { prism as lightTheme } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import type { Message } from '../types/chat'
 
+export interface ToolCallLogEntry {
+  id: string
+  name: string
+  args: Record<string, unknown>
+  output?: unknown
+  isError?: boolean
+  status: 'running' | 'done'
+}
+
 interface Props {
   messages: Message[]
   streamingContent: string
   streamingThought?: string
   isStreaming: boolean
+  streamingImagePending?: boolean
   activeTool?: { name: string; args: any } | null
+  toolCallLog?: ToolCallLogEntry[]
   error: string | null
   onRetry?: () => void
 }
 
-export function ChatArea({ messages, streamingContent, streamingThought, isStreaming, activeTool, error, onRetry }: Props) {
+export function ChatArea({ messages, streamingContent, streamingThought, isStreaming, streamingImagePending, activeTool, toolCallLog = [], error, onRetry }: Props) {
   const scrollRef = React.useRef<HTMLDivElement>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [expandedThoughts, setExpandedThoughts] = useState<Record<string, boolean>>({})
   const [copiedCodeId, setCopiedCodeId] = useState<string | null>(null)
+  const [expandedToolOutput, setExpandedToolOutput] = useState<Record<string, boolean>>({})
+  const [expandedMessageTools, setExpandedMessageTools] = useState<Record<string, boolean>>({})
 
   const toggleThought = (id: string) => {
     setExpandedThoughts(prev => ({ ...prev, [id]: !prev[id] }))
@@ -157,7 +170,6 @@ export function ChatArea({ messages, streamingContent, streamingThought, isStrea
   };
 
   const renderImage = ({ node, ...props }: any) => {
-    console.log('[Renderer] Rendering image:', props.src);
     
     return (
       <span className="block my-4 group relative w-fit">
@@ -229,6 +241,98 @@ export function ChatArea({ messages, streamingContent, streamingThought, isStrea
                             )}
                           </div>
                         )}
+                        {Array.isArray(msg.parts) &&
+                          msg.parts.filter((p: any) => p.type === 'tool-call').length > 0 && (() => {
+                            const toolParts = msg.parts.filter((p: any) => p.type === 'tool-call')
+                            const count = toolParts.length
+                            const isToolsExpanded = expandedMessageTools[msg.id]
+                            return (
+                          <div className="space-y-2">
+                            <button
+                              type="button"
+                              onClick={() => setExpandedMessageTools((p) => ({ ...p, [msg.id]: !p[msg.id] }))}
+                              className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl border border-black/5 bg-[#f9f9f8] hover:bg-black/[0.02] transition-colors text-left"
+                            >
+                              <div className="flex items-center gap-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                                <Wrench size={12} />
+                                工具调用
+                                <span className="text-gray-400 font-normal normal-case">({count})</span>
+                              </div>
+                              <ChevronDown size={14} className={clsx("text-gray-400 transition-transform duration-200", isToolsExpanded && "rotate-180")} />
+                            </button>
+                            {isToolsExpanded && toolParts
+                              .map((part: any, idx: number) => {
+                                const entryId = `${msg.id}-tool-${idx}`
+                                const isError = part.metadata?.isError
+                                return (
+                                  <div
+                                    key={entryId}
+                                    className={clsx(
+                                      'rounded-xl border overflow-hidden transition-all',
+                                      isError ? 'bg-red-50/50 border-red-100' : 'bg-[#f9f9f8] border-black/5'
+                                    )}
+                                  >
+                                    <div className="px-4 py-2.5 flex items-center gap-3 min-w-0">
+                                      <div className="w-8 h-8 rounded-lg bg-white/80 border border-black/5 flex items-center justify-center shrink-0">
+                                        {part.toolName === 'generate_image' ? (
+                                          <ImageIcon size={16} className="text-claude-accent" />
+                                        ) : (
+                                          <Wrench size={16} className="text-claude-accent" />
+                                        )}
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <div className="text-sm font-semibold text-gray-800 truncate">{part.toolName}</div>
+                                        <div className="text-[11px] text-gray-500 font-mono truncate mt-0.5">
+                                          {!part.toolInput || Object.keys(part.toolInput).length === 0
+                                            ? '(无参数)'
+                                            : JSON.stringify(part.toolInput).slice(0, 80) +
+                                              (JSON.stringify(part.toolInput).length > 80 ? '…' : '')}
+                                        </div>
+                                      </div>
+                                      {part.toolOutput !== undefined && (
+                                        <ChevronRight
+                                          size={14}
+                                          className={clsx(
+                                            'text-gray-400 shrink-0 transition-transform',
+                                            expandedToolOutput[entryId] && 'rotate-90'
+                                          )}
+                                        />
+                                      )}
+                                    </div>
+                                    {part.toolOutput !== undefined && (
+                                      <div className="border-t border-black/5">
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            setExpandedToolOutput((p) => ({ ...p, [entryId]: !p[entryId] }))
+                                          }
+                                          className="w-full px-4 py-2 text-left text-[11px] font-medium text-gray-500 hover:bg-black/[0.02] flex items-center justify-between"
+                                        >
+                                          <span>{isError ? '错误详情' : '返回结果'}</span>
+                                          <span className="text-gray-400">
+                                            {expandedToolOutput[entryId] ? '收起' : '展开'}
+                                          </span>
+                                        </button>
+                                        {expandedToolOutput[entryId] && (
+                                          <pre
+                                            className={clsx(
+                                              'px-4 pb-3 pt-0 text-[11px] font-mono whitespace-pre-wrap break-words overflow-x-auto max-h-48 overflow-y-auto',
+                                              isError ? 'text-red-600' : 'text-gray-600'
+                                            )}
+                                          >
+                                            {typeof part.toolOutput === 'string'
+                                              ? part.toolOutput
+                                              : JSON.stringify(part.toolOutput, null, 2)}
+                                          </pre>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                )
+                              })}
+                          </div>
+                            )
+                          })()}
                         <ReactMarkdown
                           remarkPlugins={[remarkGfm]}
                           urlTransform={(uri) => {
@@ -304,20 +408,31 @@ export function ChatArea({ messages, streamingContent, streamingThought, isStrea
                   )}
 
                   {streamingContent ? (
-                    <ReactMarkdown
-                      remarkPlugins={[remarkGfm]}
-                      urlTransform={(uri) => {
-                        if (uri.startsWith('chat-file://')) return uri;
-                        return uri;
-                      }}
-                      components={{
-                        p: renderParagraph,
-                        img: renderImage,
-                        code: renderCode
-                      }}
-                    >
-                      {streamingContent}
-                    </ReactMarkdown>
+                    <>
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm]}
+                        urlTransform={(uri) => {
+                          if (uri.startsWith('chat-file://')) return uri;
+                          return uri;
+                        }}
+                        components={{
+                          p: renderParagraph,
+                          img: renderImage,
+                          code: renderCode
+                        }}
+                      >
+                        {streamingContent}
+                      </ReactMarkdown>
+                      {streamingImagePending && (
+                        <div className="mt-4 flex items-center gap-3 p-4 bg-claude-accent/5 rounded-xl border border-claude-accent/20 animate-pulse">
+                          <Loader2 size={20} className="text-claude-accent shrink-0 animate-spin" />
+                          <div>
+                            <p className="text-sm font-medium text-claude-accent">正在生成图片</p>
+                            <p className="text-xs text-gray-500 mt-0.5">请稍候，图片生成可能需要数十秒</p>
+                          </div>
+                        </div>
+                      )}
+                    </>
                   ) : (
                     isStreaming && (
                       <div className="flex items-center gap-2 text-gray-400">
@@ -331,7 +446,78 @@ export function ChatArea({ messages, streamingContent, streamingThought, isStrea
                     )
                   )}
 
-                  {activeTool && (
+                  {toolCallLog.length > 0 && (
+                    <div className="my-4 space-y-2">
+                      <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                        <Wrench size={12} />
+                        工具调用
+                      </div>
+                      {toolCallLog.map((entry) => (
+                        <div
+                          key={entry.id}
+                          className={clsx(
+                            'rounded-xl border overflow-hidden transition-all',
+                            entry.status === 'running'
+                              ? 'bg-claude-accent/5 border-claude-accent/20 animate-pulse'
+                              : entry.isError
+                                ? 'bg-red-50/50 border-red-100'
+                                : 'bg-[#f9f9f8] border-black/5'
+                          )}
+                        >
+                          <div className="px-4 py-2.5 flex items-center gap-3 min-w-0">
+                            <div className="w-8 h-8 rounded-lg bg-white/80 border border-black/5 flex items-center justify-center shrink-0">
+                              {entry.status === 'running' ? (
+                                <Loader2 size={16} className="text-claude-accent animate-spin" />
+                              ) : entry.name === 'generate_image' ? (
+                                <ImageIcon size={16} className="text-claude-accent" />
+                              ) : (
+                                <Wrench size={16} className="text-claude-accent" />
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm font-semibold text-gray-800 truncate">{entry.name}</div>
+                              <div className="text-[11px] text-gray-500 font-mono truncate mt-0.5">
+                                {Object.keys(entry.args).length === 0
+                                  ? '(无参数)'
+                                  : JSON.stringify(entry.args).slice(0, 80) + (JSON.stringify(entry.args).length > 80 ? '…' : '')}
+                              </div>
+                            </div>
+                            {entry.status === 'done' && (
+                              <ChevronRight
+                                size={14}
+                                className={clsx('text-gray-400 shrink-0 transition-transform', expandedToolOutput[entry.id] && 'rotate-90')}
+                              />
+                            )}
+                          </div>
+                          {entry.status === 'done' && entry.output !== undefined && (
+                            <div className="border-t border-black/5">
+                              <button
+                                type="button"
+                                onClick={() => setExpandedToolOutput((p) => ({ ...p, [entry.id]: !p[entry.id] }))}
+                                className="w-full px-4 py-2 text-left text-[11px] font-medium text-gray-500 hover:bg-black/[0.02] flex items-center justify-between"
+                              >
+                                <span>{entry.isError ? '错误详情' : '返回结果'}</span>
+                                <span className="text-gray-400">{expandedToolOutput[entry.id] ? '收起' : '展开'}</span>
+                              </button>
+                              {expandedToolOutput[entry.id] && (
+                                <pre
+                                  className={clsx(
+                                    'px-4 pb-3 pt-0 text-[11px] font-mono whitespace-pre-wrap break-words overflow-x-auto max-h-48 overflow-y-auto',
+                                    entry.isError ? 'text-red-600' : 'text-gray-600'
+                                  )}
+                                >
+                                  {typeof entry.output === 'string'
+                                    ? entry.output
+                                    : JSON.stringify(entry.output, null, 2)}
+                                </pre>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {activeTool && toolCallLog.length === 0 && (
                     <div className="my-4 p-4 bg-[#f9f9f8] rounded-xl border border-black/5 flex items-center gap-3 shadow-sm animate-pulse">
                       <div className="w-9 h-9 rounded-full bg-claude-accent/10 flex items-center justify-center text-claude-accent">
                         {activeTool.name === 'generate_image' ? <ImageIcon size={18} /> : <Bot size={18} />}

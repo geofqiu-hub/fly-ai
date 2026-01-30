@@ -42,7 +42,6 @@ export class ChatStorage {
     const sessionDir = this.getSessionDir(sessionId);
     try {
       await fs.rm(sessionDir, { recursive: true, force: true });
-      console.log(`[ChatStorage] Deleted storage for session: ${sessionId}`);
     } catch (error) {
       console.error(`[ChatStorage] Failed to delete storage for session ${sessionId}:`, error);
     }

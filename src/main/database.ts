@@ -317,4 +317,12 @@ const initModels = () => {
 
 initModels()
 
+/** Get a setting value by key. Used by main process (e.g. tools). */
+export function getSetting(key: string): string | null {
+  const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key) as
+    | { value: string }
+    | undefined
+  return row ? row.value : null
+}
+
 export default db

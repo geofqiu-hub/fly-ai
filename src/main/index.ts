@@ -57,14 +57,10 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
-  console.log('[Main] App ready, setting up...')
-  console.log('[Main] UserData Path:', app.getPath('userData'))
-
   // Ensure storage directory exists immediately
   const storagePath = ChatStorage.getSessionDir('') // gets base storage/chats path
   if (!fs.existsSync(storagePath)) {
     fs.mkdirSync(storagePath, { recursive: true })
-    console.log('[Main] Created storage directory:', storagePath)
   }
 
   // Handle chat-file protocol
@@ -87,8 +83,6 @@ app.whenReady().then(() => {
       }
 
       const filePath = path.join(app.getPath('userData'), 'storage', 'chats', sessionId, fileName)
-      
-      console.log('[Protocol] Attempting to serve:', filePath)
       
       if (!fs.existsSync(filePath)) {
         console.error('[Protocol] File not found on disk:', filePath)
@@ -118,11 +112,8 @@ app.whenReady().then(() => {
     }
   })
 
-  console.log('[Main] Calling setupStreamIPC...')
   setupStreamIPC()
-  console.log('[Main] Calling setupIPC...')
   setupIPC()
-  console.log('[Main] Registering providers...')
   providerManager.registerProvider(new GeminiProvider())
 
   // Setup auto-updater
@@ -145,17 +136,11 @@ app.whenReady().then(() => {
       
       if (fs.existsSync(dockIconPath)) {
         const dockImage = nativeImage.createFromPath(dockIconPath)
-        if (!dockImage.isEmpty()) {
-          app.dock.setIcon(dockImage)
-          console.log('[Main] Dock icon set to preprocessed PNG (256x256, opaque):', dockIconPath)
-        }
+        if (!dockImage.isEmpty()) app.dock.setIcon(dockImage)
       } else if (fs.existsSync(fallbackIconPath)) {
-        // 回退：使用原始图标并调整大小
         const pngImage = nativeImage.createFromPath(fallbackIconPath)
         if (!pngImage.isEmpty()) {
-          const resized = pngImage.resize({ width: 256, height: 256, quality: 'best' })
-          app.dock.setIcon(resized)
-          console.log('[Main] Dock icon set to resized PNG (256x256):', fallbackIconPath)
+          app.dock.setIcon(pngImage.resize({ width: 256, height: 256, quality: 'best' }))
         }
       }
     } catch (error) {
@@ -164,7 +149,6 @@ app.whenReady().then(() => {
     }
   }
 
-  console.log('[Main] Creating window...')
   createWindow()
 
   app.on('activate', function () {

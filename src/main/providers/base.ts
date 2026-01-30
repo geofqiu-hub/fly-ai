@@ -82,6 +82,7 @@ export interface Provider {
   generateTitle?(params: {
     config: ProviderConfig
     message: string
+    titleModelIds?: string[]
   }): Promise<string>
 }
 

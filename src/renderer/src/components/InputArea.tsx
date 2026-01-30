@@ -31,9 +31,11 @@ interface Props {
   onSelectModel?: (model: Model | null) => void
   canChangeModel?: boolean
   onSelectAgent?: (agentId: string | null) => void | Promise<void>
+  /** 变更时让模型选择器重新拉取列表，设置保存后实时生效 */
+  modelsRefreshKey?: number
 }
 
-export function InputArea({ onSend, disabled, currentAgent, currentModel, onSelectModel, canChangeModel = true, onSelectAgent }: Props) {
+export function InputArea({ onSend, disabled, currentAgent, currentModel, onSelectModel, canChangeModel = true, onSelectAgent, modelsRefreshKey }: Props) {
   const [text, setText] = useState('')
   const [attachments, setAttachments] = useState<Attachment[]>([])
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -376,6 +378,7 @@ export function InputArea({ onSend, disabled, currentAgent, currentModel, onSele
                       selectedModelId={currentModel?.modelId}
                       onSelectModel={onSelectModel || (() => {})}
                       disabled={!canChangeModel}
+                      modelsRefreshKey={modelsRefreshKey}
                     />
                     <input 
                       type="file" 

@@ -1,11 +1,27 @@
 import { ToolExecutor } from './base'
+import { BashTool } from './bash'
+import { EditTool } from './edit'
+import { GlobTool } from './glob'
+import { GrepTool } from './grep'
 import { ImageGenTool } from './image-gen'
+import { ListDirTool } from './list-dir'
+import { ReadFileTool } from './read-file'
+import { WebfetchTool } from './webfetch'
+import { WriteTool } from './write'
 
 class ToolRegistry {
-  private tools: Map<string, ToolExecutor> = new Map()
+  private readonly tools: Map<string, ToolExecutor> = new Map()
 
   constructor() {
     this.registerTool(new ImageGenTool())
+    this.registerTool(new ReadFileTool())
+    this.registerTool(new ListDirTool())
+    this.registerTool(new GrepTool())
+    this.registerTool(new GlobTool())
+    this.registerTool(new WebfetchTool())
+    this.registerTool(new EditTool())
+    this.registerTool(new WriteTool())
+    this.registerTool(new BashTool())
   }
 
   registerTool(tool: ToolExecutor) {
