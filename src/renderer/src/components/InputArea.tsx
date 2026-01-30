@@ -20,6 +20,9 @@ interface Agent {
   temperature?: number
 }
 
+/** 单条消息最大字符数，避免 IPC/API 负载过大导致「输入内容超长」 */
+const MAX_INPUT_LENGTH = 100_000
+
 interface Props {
   onSend: (text: string, attachments: Attachment[], modelId?: string) => void
   disabled: boolean
@@ -343,11 +346,13 @@ export function InputArea({ onSend, disabled, currentAgent, currentModel, onSele
                 ref={textareaRef}
                 value={text}
                 onChange={(e) => {
-                  setText(e.target.value)
+                  const value = e.target.value
+                  const capped = value.length > MAX_INPUT_LENGTH ? value.slice(0, MAX_INPUT_LENGTH) : value
+                  setText(capped)
                   handleTextareaResize()
 
                   // 如果用户删除了 "#" 触发符，则关闭智能体列表
-                  if (showAgentList && !e.target.value.includes('#')) {
+                  if (showAgentList && !capped.includes('#')) {
                     setShowAgentList(false)
                     setAgentTriggerIndex(null)
                   }
@@ -360,6 +365,11 @@ export function InputArea({ onSend, disabled, currentAgent, currentModel, onSele
                 disabled={disabled}
             />
 
+            {text.length >= MAX_INPUT_LENGTH && (
+              <div className="mt-1 px-1 text-xs text-amber-600" role="alert">
+                输入内容超长了（最多 {MAX_INPUT_LENGTH.toLocaleString()} 字），请适当缩短后重试。
+              </div>
+            )}
             <div className="flex justify-between items-center mt-2 px-1 border-t border-gray-100 pt-2">
                 <div className="flex items-center gap-3">
                     <ModelSelector
@@ -387,7 +397,7 @@ export function InputArea({ onSend, disabled, currentAgent, currentModel, onSele
 
                 <button
                     onClick={handleSend}
-                    disabled={(!text.trim() && attachments.length === 0) || disabled}
+                    disabled={(!text.trim() && attachments.length === 0) || disabled || text.length >= MAX_INPUT_LENGTH}
                     className="bg-claude-accent text-white p-1.5 rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
                 >
                     <Send size={16} />

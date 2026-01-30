@@ -52,3 +52,16 @@ html, body, #root {
   border: 2px solid transparent;
   background-clip: content-box;
 }
+
+/* 聊天区域长内容自动换行，避免页面横向溢出 */
+.prose-claude pre,
+.prose-claude code,
+.prose-claude a,
+.prose-claude p {
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+.prose-claude pre {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
